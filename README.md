@@ -23,9 +23,15 @@ upload/download files to/from BBS systems.
 So if you want to enjoy ANSI Art you are in the wrong place. Neither if you want
 to use YAT as online-terminal to interact, read or write messages.
 
-If you want to deep into YAT, please read [DOC/YAT.TXT](https://github.com/majingazetto/YAT/blob/main/DOC/YAT.TXT)
+If you want to deep into YAT  please read [DOC/YAT.TXT](https://github.com/majingazetto/YAT/blob/main/DOC/YAT.TXT)
 
-## Regarding licence:
+# Regarding licence 
 
 You can copy, share and use all files. Separately or the project. There is no licence here. You can earn money with my code. There is no problem because even if I tell you not to do it, you will do it.
+
+# Where is my COM? 
+
+Find MSX-DOS command executable (.COM) at Releases
+
+
 
