@@ -1,0 +1,848 @@
+;                                       ****************************************
+;                                       * BDOS                                 *
+;                                       ****************************************
+
+
+
+; --- BDOS ENTRY  / VERSION             ----------------------------------------
+
+
+; - BDOS -------------
+; - CALL BDOS ENTRY
+; - CY = 1 ERROR
+; - 
+
+BDOS            PUSH    AF
+                XOR     A
+                LD      (UNAPISET),A
+                POP     AF
+                CALL    DOS
+                AND     A
+                RET     Z
+                SCF
+                RET
+                
+
+
+; - DOSVER -----------
+; - GET DOS VERSION
+; -     
+
+DOSVER          XOR     A
+                LD      (DOS2),A
+                LD      C,_DOSVER
+                CALL    BDOS
+                LD      A,B
+                CP      2
+                RET     C
+                LD      A,#FF
+                LD      (DOS2),A
+                RET
+
+                
+
+
+; --- FILE (OPEN / READ / WRITE)        ----------------------------------------
+
+
+                ; -
+                ; - DOS 1
+                ; -
+
+
+; - BUILDFCB ---------
+; - CLEAN FCB
+; - AND COPY FILENAME
+; - HL: FILENAME
+
+BUILDFCB        PUSH    HL 
+                LD      HL,FCB
+                LD      DE,FCB + 1
+                LD      BC,36
+                LD      (HL),0
+                LDIR
+                LD     HL,FCB + FFILNAME
+                LD     DE,FCB + FFILNAME + 1
+                LD     BC,10
+                LD     (HL),' '
+                LDIR
+                POP     HL
+
+                LD      DE,FCB + FFILNAME
+
+.NAME           LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.END
+                CP      '.'
+                JR      Z,.PEXT
+                LD      (DE),A
+                INC     DE
+                JR      .NAME
+
+.PEXT           LD      DE,FCB + FFILEXT
+.EXT            LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.END
+                LD      (DE),A
+                INC     DE
+                JR      .EXT
+
+
+.END            RET
+
+
+; - FOPEN ------------
+; - FILE FCB OPEN
+; - OUTPUT: 
+; -     DEHL: FILE SIZE
+; - 
+
+FOPEN           LD      DE,FCB
+                LD      C,_FOPEN
+                CALL    BDOS
+                RET     C
+                LD      IX,FCB
+                LD      A,1
+                LD      (IX + 14),A
+                XOR     A
+                LD      (IX + 15),A
+                LD      (IX + 33),A
+                LD      (IX + 34),A
+                LD      (IX + 35),A
+                LD      (IX + 36),A
+                LD      HL,(FCB + FFILSIZ)
+                LD      DE,(FCB + FFILSIZ + 2)
+                RET        
+
+
+; - FMAKE ------------
+; - FILE MAKE
+; - CREATES FCB FILE
+; - 
+
+
+FMAKE           LD      DE,FCB
+                LD      C,_FMAKE
+                CALL    BDOS
+                RET     C
+                LD      IX,FCB
+                LD      A,1
+                LD      (IX + 14),A
+                XOR     A
+                LD      (IX + 15),A
+                LD      (IX + 33),A
+                LD      (IX + 34),A
+                LD      (IX + 35),A
+                LD      (IX + 36),A
+                RET     
+
+; - FSEEK ------------
+; - FILE SEEK FCB
+; - DEHL: OFFSET
+; - 
+
+FSEEK           LD      IX,FCB
+                LD      (IX + 33),L
+                LD      (IX + 34),H
+                LD      (IX + 35),E
+                LD      (IX + 36),D
+                RET
+
+
+; - RDBLK ------------
+; - READ FCB BLOCK BYTES
+; - TO DMA
+; - HL: BYTES TO READ
+; - 
+
+
+RDBLK           LD      DE,FCB
+                LD      C,_RDBLK
+                JP      BDOS
+
+
+; - WRBLK ------------
+; - WRITE FCB BLOCK BYTES
+; - FROM DMA
+; - HL: BYTES TO WRITE
+; - 
+
+
+WRBLK           LD      DE,FCB
+                LD      C,_WRBLK
+                JP      BDOS
+
+
+; - FCLOSE -----------
+; - FCB CLOSE FILE
+; - 
+
+FCLOSE          LD      DE,FCB
+                LD      C,_FCLOSE
+                JP      BDOS
+
+
+
+; - FDEL -------------
+; - FCB DELETE FILE
+; - 
+
+FDEL            LD      DE,FCB
+                LD      C,_FDEL
+                JP      BDOS
+
+
+; - SETDMA -----------
+; - DE: DMA
+; -
+
+SETDMA          LD      C,_SETDTA
+                JP      BDOS
+
+
+
+; - GETREM -----------
+; - GET REMAINING SIZE
+; - OPENED FCB
+; - OUTPUT:
+; -     DE:HL REM. SIZE
+; - 
+
+GETREM          LD      HL,(FCB + FFILSIZ)
+                LD      DE,(FCB + FRNDREC)
+                AND     A
+                SBC     HL,DE
+                EX      DE,HL
+                LD      HL,(FCB + FFILSIZ + 2)
+                LD      BC,(FCB + FRNDREC + 2)
+                SBC     HL,BC
+                EX      DE,HL
+                RET
+
+
+; - GETMAXSZ ------------
+; - HL: SIZE TO READ
+; - OUTPUT: MAX SIZE
+; - 
+
+GETMAXSZ        PUSH    HL
+                CALL    GETREM
+.GEN            LD      A,D
+                OR      E
+                EX      DE,HL
+                POP     HL
+                RET     NZ                      ; > 64k
+                
+                ; HL SIZE
+                ; DE LOW CURRENT
+
+                EX      DE,HL
+
+                ; HL CURRENT (LOW)
+                ; DE SIZE
+
+                CALL    CMPHLDE
+                RET     C                       ; SIZE > CURRENT 
+                                                ; RETURN CURRENT
+                EX      DE,HL                   ; ELSE RETURN SIZE                                                        
+                RET
+
+
+
+
+
+                ; -
+                ; - DOS 2
+                ; - 
+
+
+; - DSEEK ------------
+; - DOS 2 SEEK 
+; - B: FILE HANDLE
+; - DEHL: OFFSET
+; - 
+
+DSEEK           XOR     A
+.GEN            LD      C,_SEEK
+                JP      BDOS
+
+
+; - DOPEN ------------
+; - DOS 2 OPEN FILE
+; - HL: FILENAME (ASCIIZ)
+; - OUTPUT: 
+; -     A: FILE HANDLE
+; -     DEHL: FILE SIZE
+; -
+
+DOPEN           EX      DE,HL
+                XOR     A
+                LD      C,_OPEN
+                CALL    BDOS
+                RET     C
+                PUSH    BC
+                LD      HL,0
+                LD      DE,0
+                LD      A,2             ; RELATIVE END OF FILE
+                CALL    DSEEK.GEN
+                POP     BC
+                PUSH    BC
+                PUSH    HL
+                PUSH    DE
+                LD      HL,0
+                LD      DE,0
+                CALL    DSEEK
+                POP     DE
+                POP     HL
+                POP     AF
+                AND     A
+                RET
+                
+
+
+; - DCLOSE  ----------
+; - DOS2 CLOSE FH
+; - B: FH
+; - 
+
+DCLOSE          LD      C,_CLOSE
+                JP      BDOS
+
+
+
+; - DREAD ------------
+; - DOS2 READ BYTES FROM FH
+; - B: FH
+; - HL: BYTES TO READ
+; - DE: BUFFER ADDRESS
+; - 
+
+DREAD           LD      C,_READ
+                JP      BDOS
+
+                
+; - DWRITE -----------
+; - DOS2 WRITE BYTES TO FH
+; - B: FH
+; - HL: BYTES TO WRITE
+; - DE: FROM BUFFER ADDRESS
+; - 
+
+DWRITE          LD      C,_WRITE
+                JP      BDOS
+
+
+
+; - DCREATE ----------
+; - DOS2 CREATE FILE
+; - HL: FILENAME ASCIIZ
+; - OUTPUT: 
+; -     A: FH
+; - 
+
+DCREATE         EX      DE,HL
+                XOR     A
+                LD      C,_CREATE
+                CALL    BDOS
+                LD      A,B
+                RET     
+
+
+; - DDEL -------------
+; - DOS2 DELETE FILE
+; - HL: FILENAME ASCIIZ
+; -
+
+DDEL            EX      DE,HL
+                LD      C,_DELETE
+                JP      BDOS
+
+
+; - DGETREM ----------
+; - GET REMAINING SIZE
+; - B: OPENED FH
+; - OUTPUT: 
+; -     DE:HL REM. SIZE
+; - 
+
+DGETREM         LD      DE,0
+                LD      HL,0
+                LD      A,1
+                PUSH    BC
+                CALL    DSEEK.GEN
+                POP     BC
+
+                PUSH    HL
+                PUSH    DE
+                LD      DE,0
+                LD      HL,0
+                PUSH    BC
+                LD      A,2
+                CALL    DSEEK.GEN
+                POP     BC
+                LD      (FSIZETMP),HL
+                LD      (FSIZETMP + 2),DE
+                POP     DE
+                POP     HL
+
+                PUSH    DE
+                PUSH    HL
+                CALL    DSEEK
+                LD      HL,(FSIZETMP)
+                POP     DE
+                AND     A
+                SBC     HL,DE
+                EX      DE,HL
+                POP     BC
+                LD      HL,(FSIZETMP + 2)
+                SBC     HL,BC
+                EX      DE,HL
+                RET
+
+
+
+
+
+; - DGETMAX -----------
+; - B: FH
+; - HL: SIZE TO READ
+; - OUTPUT: 
+; -     HL: MAX SIZE
+; - 
+
+DGETMAX         PUSH    HL
+                CALL    DGETREM 
+                JP      GETMAXSZ.GEN
+                
+
+                ; -
+                ; - COMPATIBLE DOS 1 / DOS 2
+                ; - "HIGH" LEVEL ROUTINES
+                ; - 
+
+; - DSKCREATE --------
+; - CREATE FILE
+; - HL: FILENAMEZ
+; - OUTPUT:
+; -     A: FILEHANDLE
+; -
+
+DSKCREATE       LD      A,(DOS2)
+                AND     A
+                JP      NZ,DCREATE
+
+                ; DOS 1
+
+                CALL    BUILDFCB
+                CALL    FMAKE
+                RET     C
+                LD      A,1 ; FAKE FH
+                RET
+
+
+
+; - DSKOPEN ----------
+; - OPEN FILE
+; - HL: FILENAME (ASCIIZ)
+; - OUTPUT: 
+; -    A: FILEHANDLE
+; -    DEHL: FILE SIZE
+; - 
+
+DSKOPEN         LD      A,(DOS2)
+                AND     A
+                JP      NZ,DOPEN
+
+                ; DOS 1
+
+                CALL    BUILDFCB
+                CALL    FOPEN
+                RET     C
+                LD      A,1 ; FAKE FH
+                RET
+
+
+
+; - DSKCLOSE ---------
+; - FCB/FH FILE CLOSE
+; - A: FH
+; -
+
+DSKCLOSE        LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DCLOSE
+                JP      FCLOSE
+
+
+
+; - DSKREAD -----------
+; - A: FH
+; - HL: BYTES TO READ
+; - DE: BUFFER ADDRESS
+; - (FROM LAST POINTER)
+; - OUTPUT:
+; -     HL: BYTES READ
+; - 
+
+DSKREAD         LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DREAD
+                PUSH    HL
+                CALL    SETDMA
+                POP     HL
+                CALL    GETMAXSZ
+                JP      RDBLK
+
+
+; - DSKWRITE -----------
+; - A: FH
+; - HL: BYTES TO WRITE
+; - DE: FROM BUFFER ADRESS
+; - (TO LAST POINTER)
+; -
+
+DSKWRITE        LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DWRITE
+                PUSH    HL
+                CALL    SETDMA
+                POP     HL
+                JP      WRBLK
+
+
+; - DSKSEEK ----------
+; - A: FH
+; - DEHL: POINTER
+; - 
+
+DSKSEEK         LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DSEEK
+                JP      FSEEK
+
+
+
+; - DSKDEL -----------
+; - DELETE FILE
+; - HL: FILENAMEZ
+; - 
+
+DSKDEL          LD      A,(DOS2)
+                AND     A
+                JP      NZ,DDEL
+
+                ; DOS 1
+
+                CALL    BUILDFCB
+                JP      FDEL
+
+
+; - DSKGETRE ---------
+; - GET REMAINING SIZE
+; - OF OPENED FILE
+; - A: FH
+; - OUTPUT:
+; -     DEHL: REM. SIZE
+; - 
+
+DSKGETRE        LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DGETREM
+                JP      GETREM
+
+
+; - DSKGETMA -------
+; - GET MAX SIZE
+; - HL: SIZE TO READ
+; - A: FH
+; - OUTPUT: MAX SIZE
+; - 
+
+DSKGETMA        LD      B,A
+                LD      A,(DOS2)
+                AND     A
+                JP      NZ,DGETMAX
+                JP      GETMAXSZ
+
+
+
+
+; --- PRINT / OUTPUT                    ----------------------------------------
+
+
+; - STROUT -----------
+; - DE: POINTER TO $-FINISHED STRING
+; -
+
+STROUT          LD      C,_STROUT
+                JP      DOS
+
+
+; --- ERROR / EXIT                      ---------------------------------------
+
+
+; - STREXIT ----------
+; - EXIT WITH MESSAGE
+; - DE: POINTER TO STRING
+; - 
+
+STREXIT         CALL    STROUT
+
+
+; - TERM -------------
+; - TERMINATE PROGRAM
+; - 
+
+TERM            LD      A,(DOS2) 
+                AND     A
+                JR      Z,.TERM0
+                LD      BC,_TERM 
+                CALL    DOS
+.TERM0          LD      C,_TERM0
+                JP      DOS
+
+                
+
+;                                       ****************************************
+;                                       * BDOS RELATED                         *
+;                                       ****************************************
+
+
+; --- FILENAME / PATH                   ---------------------------------------
+
+
+; - GETNDFN ---------
+; - GET NOT DIR FILENAME
+; - HL: FILENAMEZ PATH
+; - DE: FILENAMEZ WITHOUT PATH
+; - 
+
+GETNDFN         XOR     A
+                LD      (DE),A
+                CALL    STRTAIL
+                LD      A,B
+                OR      C
+                RET     Z
+                PUSH    DE
+.LOOP           LD      A,(HL)
+                CP      '\'
+                JR      Z,.END
+                CP      ':'
+                JR      Z,.END
+                CP      '/'
+                JR      Z,.END
+                DEC     HL
+                DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,.LOOP
+.END            INC     HL
+                POP     DE
+.COPY           LD      A,(HL)
+                LD      (DE),A
+                INC     HL
+                INC     DE
+                AND     A
+                JR      NZ,.COPY
+                RET
+               
+              
+; - TODOSFN ----------
+; - CONVERTS FILENAME
+; - TO DOS (8.3) FILENAME
+; - HL: FILENAME
+; - DE: OUTPUT BUFFER (ASCIIZ)
+; - 
+; - 
+
+
+TODOSFN         CALL    .GEN
+                XOR     A
+                LD      (DE),A
+                RET
+
+
+.GEN            LD      B,8
+
+                ; GET NAME
+                
+.NAME           LD      A,(HL)
+                INC     HL
+                LD      (DE),A
+                INC     DE
+                AND     A
+                RET     Z
+                CP      '.'
+                JP      Z,.EXT
+                DJNZ    .NAME
+
+                ; CHECK IF . IS PRESENT
+
+.PERIOD         LD      A,(HL)
+                INC     HL
+                AND     A
+                RET     Z
+                CP      '.'
+                JR      NZ,.PERIOD
+
+                ; STORE PERIOD
+
+                LD      (DE),A
+                INC     DE
+
+                ; GETS EXTENSION 
+
+.EXT            LD      B,3       
+.EXTLOOP        LD      A,(HL)
+                INC     HL
+                LD      (DE),A
+                INC     DE
+                AND     A
+                RET     Z
+                DJNZ    .EXTLOOP
+                RET
+
+
+
+
+; --- PARAMS                            ---------------------------------------
+
+
+
+; - EXTPARM ----------
+; - EXTRACT PARAMS
+; - CY = 1 NO PARAMS
+; - HL: BUFFER 
+; - OUTPUT STRUCT:
+;       + 0 : PARAMS SIZE
+;       + 1 : PNT PARAM 0
+;       + 4 : PNT PARAM 1
+;       ...
+
+EXTPARM         LD      A,(#80)
+                AND     A
+                SCF     
+                RET     Z
+
+                ; IX COUNTER
+
+                PUSH    HL
+                POP     IX      
+                INC     IX
+                EXX
+
+                ; MARK END
+
+
+                LD      C,A
+                LD      B,0
+                LD      HL,#81
+                ADD     HL,BC
+                LD      (HL),0
+
+                ; COUNT PARAMS POINT PARAMS
+                
+                LD      HL,#81
+                LD      C,0
+.COUNT          LD      A,(HL)
+                AND     A
+                JR      Z,.ENDCOUNT
+                CP      ' ' 
+                JR      NZ,.ADDPAR
+                INC     HL
+                JR      .COUNT
+                
+.ADDPAR         LD      (IX + 0),L
+                LD      (IX + 1),H
+                INC     IX
+                INC     IX
+                INC     C
+
+                ; INC UNTIL NEXT PARAM (OR END)
+
+.NEXT           LD      A,(HL)
+                CP      ' '
+                JR      Z,.COUNT
+                AND     A
+                JR      Z,.ENDCOUNT
+                INC     HL
+                JR      .NEXT
+
+.ENDCOUNT       LD      A,C 
+                EXX
+                LD      (HL),A
+                AND     A
+                RET     NZ
+                SCF
+                RET
+
+
+; - GETPARAM ---------
+; - GET PARAMETER FROM BUFFER
+; - A: NUMBER (0 1ST, 1 2ND..)
+; - HL: BUFFER
+; - DE: DEST 
+; - OUTPUT: 
+; - CY = 1 ERROR
+; -     DE: COPY OF PARAM (IF DE != 0)
+; -     HL: POINTER TO PARAM 
+; -     C: SIZE
+; -
+
+GETPARAM        CP      (HL)
+                RET     Z
+                CCF
+                RET     C
+                INC     HL
+                CALL    ADDHLPNT
+
+                ; CHECK MOVE OR COUNT
+
+                LD      A,D
+                OR      E
+                LD      C,0
+                JR      NZ,.MOVE
+
+                ; JUST COUNT
+
+                PUSH    HL
+.COUNT          LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.ENDCNT
+                CP      ' '
+                JR      Z,.ENDCNT
+                INC     C
+                JR      .COUNT
+
+                ; MOVE DATA
+
+.MOVE           PUSH    HL
+.COPY           LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.END
+                CP      ' '
+                JR      Z,.END
+                LD      (DE),A
+                INC     DE
+                INC     C
+                JR      .COPY
+
+
+                ; ASCIIZ END
+
+.END            XOR     A
+                LD      (DE),A
+
+.ENDCNT         POP     HL
+                RET     
+
+

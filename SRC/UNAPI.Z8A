@@ -1,0 +1,50 @@
+;                                       ****************************************
+;                                       * UNAPI                                *
+;                                       ****************************************
+
+
+
+; --- SEARCH  / SETUP                   ----------------------------------------
+
+
+; - SUNAPI -----------
+; - SEARCH / SETUP UNAPI IMPLEMENTATION
+; - HL: POINTER TO UNAPI ID
+; - BC: SIZE OF ID
+; - OUTPUT: 
+; -     Z = 1 NO UNAPI ID FOUND
+; -     A: IMPLEMENTATIONS
+
+SUNAPI          LD      DE,ARG
+                LDIR
+                XOR     A
+                LD      B,A
+                LD      DE,#2222
+                CALL    EXTBIO
+                LD      A,B
+                AND     A
+                RET     
+
+
+; - SETUNAPI ---------
+; - SETUP UNAPI
+; - HL: POINTER TO UNAPI ID
+; - BC: SIZE OF ID
+; - A: IMPLEMENTATION
+; - OUTPUT:
+; -     CY = 1 ERROR
+; -     A: SLOT
+; -     B: RAM SEGMENT
+; -     HL: ROUTINES ENTRY POINT
+; - 
+
+SETUNAPI        CALL    SUNAPI
+                JR      NZ,.OK
+                SCF
+                RET
+.OK             LD      A,1
+                LD      DE,#2222
+                CALL    EXTBIO
+                AND     A
+                RET
+

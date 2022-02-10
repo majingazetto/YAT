@@ -1,0 +1,2252 @@
+;                                       ****************************************
+;                                       * XYMODEM                              *
+;                                       ****************************************
+
+
+; --- XYMODEM UPLOAD                    ---------------------------------------
+
+
+
+; - XYUPLD -----------
+; - XYMODEM UPLOAD FILE
+; - (XPROTCL) -> PROTOCOL
+; - (FILENAME2) -> FILENAMEZ
+; - (FILESIZE) -> FILESIZE
+; - 
+
+
+XYUPLD          LD      A,(XPROTCL)
+                PUSH    AF
+                CALL    .GEN
+                POP     AF
+                LD      (XPROTCL),A
+                RET
+             
+
+                ; OPEN FILE 
+
+.GEN            XOR     A
+                LD      (FILEHAND),A
+                LD      HL,FILENAME2
+                LD      DE,XYFILOP
+                PUSH    HL
+                CALL    XYPRTFIL
+                POP     HL
+                CALL    DSKOPEN
+                JR      NC,.OPENED
+
+                ; ERROR OPENING FILE
+
+                LD      DE,XYFILER
+                JP      XYCLOSE
+
+
+                ; FILE OPENED
+                ; A: FILEHANDLE
+                ; DEHL: SIZE
+
+.OPENED         LD      (FILEHAND),A
+                LD      (FILESIZE),HL
+                LD      (FILESIZE + 2),DE
+
+                LD      HL,#0000
+                LD      (SIZETRANS),HL
+                LD      (SIZETRANS + 2),HL
+                
+                ; WAIT ACTION
+
+                LD      DE,XYWAITAC
+                CALL    PROGOUT
+
+
+                CALL    XYWAIT
+
+                ; WAIT RESPONSE / INIT ACTION 
+
+                LD      A,60
+                CALL    XYRECV
+                LD      DE,XYACT
+                JP      C,XYCLOSE
+
+                ; PRINT RESPONSE
+                
+                PUSH    AF
+                CALL    XYPRTCC
+                CALL    PRTCRLF
+                POP     AF
+
+                ; CANCEL?
+
+                LD      DE,XYFERCAN
+                CP      CAN
+                JP      Z,XYCLOSE
+
+                ; NAK? 
+                
+                CP      NAK
+                JP      Z,.XMODEM
+
+                ; X/YMODEM - CRC
+
+                CP      ACTCRC
+                JP      Z,.CHKPROT
+
+                ; NO ACTION RECEIVED
+
+                LD      DE,XYACT
+                JP      XYERROR
+
+                ; CHECK PROTOCOL 
+                ; RECV 'C' 
+                ; SO WE NEED CHECK IF WE'VE
+                ; SELECTED X OR Y MODEM 
+
+
+.CHKPROT        LD      A,(XPROTCL)
+                CP      YMODEM
+                JR      Z,.YMODEM
+
+                ; CONTINUE WITH XMODEM CRC
+
+
+                ; >>> XMODEM CRC <<<
+
+.XMODMCRC       LD      DE,XYSTXMODC
+                LD      A,XMODEMCRC
+                LD      HL,XMODCPSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+
+                ; >>> YMODEM <<<
+
+.YMODEM         LD      DE,XYSTYMOD
+                LD      A,YMODEM
+                LD      HL,YMODPKSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+                ; >>> XMODEM <<<
+
+.XMODEM         LD      DE,XYSTXMOD
+                LD      A,XMODEM
+                LD      HL,XMODPKSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+
+
+
+                ; INIT UPLOAD
+                ; HL: PACKET SIZE
+                ; DE: TEXT
+                ; BC: PACKET DATA SIZE
+                ; A: PROTOCOL
+
+
+.INIT           LD      (XPROTCL),A 
+                LD      (XYPKTSZ),HL
+                LD      (XYDATSZ),BC
+                PUSH    AF
+                CALL    PROGOUT
+                POP     AF
+
+                ; CHECK YMODEM TO SEND HEADER
+                
+                CP      YMODEM
+                JR      NZ,.INITLOOP
+
+                ; SEND YMODEM HEADER
+                
+                CALL    YMODSHED
+                PUSH    AF
+                LD      DE,ONECRLF
+                CALL    PROGOUT
+                POP     AF
+                JP      C,XYERROR
+
+                CP      CAN
+                LD      DE,XYFERCAN
+                JP      Z,XYCLOSE
+                
+
+                ; - 
+                ; - LOOP
+                ; - 
+
+.INITLOOP       ; INIT TRANSMISION PACKET
+                
+                LD      HL,XYPKTBUF
+                LD      (HL),SOH
+                INC     HL
+                LD      (HL),1
+                INC     HL
+                LD      (HL),#FE
+
+
+.SEND           LD      A,XERRCNT
+                LD      (XFERERR),A
+
+
+                ; CLEAN DATA BUFFER
+                
+                LD      HL,XYPKTBUF + PDATA
+                LD      DE,XYPKTBUF + PDATA + 1
+                LD      BC,XMOD1PSIZ - 1
+                LD      (HL),EOF
+                LDIR
+
+                ; CHECK IF YMODEM TO TRY SEND
+                ; STX PACKET
+
+                CALL    XYGETTXO
+
+
+                ; READ SECTOR
+
+.READS          LD      (XYPKTBUF + PSOH),A 
+
+                LD      A,(FILEHAND)
+                LD      DE,XYPKTBUF + PDATA
+                CALL    DSKREAD
+                JP      C,.END
+
+                ; PREPARE PAYLOAD
+                
+                CALL    XYDAT2PA
+
+                ; - 
+                ; - SEND PACKET
+                ; - 
+                
+
+.PACKET         LD      A,'^'
+                CALL    PROGCHAR
+
+                LD      A,(XYPKTBUF + PSOH)
+                CP      STX
+                LD      A,'1'
+                CALL    Z,PROGCHAR
+
+
+                CALL    XYSTATE
+                CALL    XYWAIT
+
+                ; GET SIZE / BUFFER
+                ; ACCORDING TRANSFER METHOD
+                ; AND SEND
+
+                CALL    XYGETTRF
+                CALL    XYBLKSEND
+
+                ; GET PACKET RESPONSE
+
+                LD      A,10
+                CALL    XYRECVN
+                JP      C,XYERROR
+
+                ; RECEIVER CANCEL?
+
+                CP      CAN
+                LD      DE,XYFERCAN
+                JP      Z,XYCLOSE
+                
+                ; PACKET ERROR? 
+
+                CP      NAK
+                JP      Z,.RETRY
+                CP      ACK
+                JP      NZ,XYERROR
+
+
+                ; NEXT PACKET
+
+.NEXT           LD      A,'A'
+                CALL    PROGCHAR
+
+                LD      A,(XYPKTBUF + PPKT)
+                INC     A
+                LD      (XYPKTBUF + PPKT),A
+                CPL
+                LD      (XYPKTBUF + PCPKT),A
+
+                ; UPDATE SIZE TRANSFERED
+                
+                LD      BC,(XYDATSZ)
+                LD      A,(XYPKTBUF + PSOH)
+                CP      SOH
+                JR      Z,.NEXTUP
+                LD      BC,XMOD1PSIZ
+
+.NEXTUP         LD      HL,(SIZETRANS)
+                ADD     HL,BC
+                LD      (SIZETRANS),HL
+                LD      BC,#0000
+                LD      HL,(SIZETRANS + 2)
+                ADC     HL,BC
+                LD      (SIZETRANS + 2),HL
+                JP      .SEND
+
+
+                ; RETRY (NAK RECEIVED)
+
+.RETRY          LD      A,'N'
+                CALL    PROGCHAR
+                LD      A,(XFERERR)
+                DEC     A
+                LD      (XFERERR),A
+                JP      Z,XYERROR
+                JP      .PACKET
+
+
+
+                ; END OF TRANSMISSION
+
+.END            LD      B,60
+
+.ENDTOUT        EI
+                HALT
+                
+                PUSH    BC
+
+                LD      A,EOT
+                CALL    XYSEND
+
+                LD      A,10
+                CALL    XYRECVN
+
+                POP     BC
+
+                JP      C,XYERROR
+
+                CP      ACK
+                JP      Z,.CLOSE
+
+        
+                DJNZ    .ENDTOUT 
+
+                JP      XYERROR
+
+
+                ; CHECK IF YMODEM
+                ; TO SEND EMPTY HEADER
+                ; TO FINISH TRANSFER
+
+.CLOSE          LD      A,(XPROTCL)
+                CP      YMODEM
+                LD      DE,XYFINISH
+                JP      NZ,.FINISH
+                
+                ; SEND EMPTY HEADER
+
+                CALL    YMODSEHE
+                JP      C,XYERROR
+                CP      CAN
+                LD      DE,XYFERCAN
+                JP      Z,.FINISH
+                LD      DE,XYFINISH
+.FINISH         JP      XYCLOSE
+
+
+; --- XYMODEM DOWNLOAD                  ---------------------------------------
+
+                
+; - XYDOWNLOAD --------
+; - XYMODEM DOWNLOAD FILE
+; - (XPROTCL) -> PROTOCOL
+; - (FILENAME2) -> FILENAMEZ
+; - (FILESIZE) -> FILESIZE
+; - 
+
+XYDOWNLOAD      LD      A,(XPROTCL)
+                PUSH    AF
+                CALL    .GEN
+                POP     AF
+                LD      (XPROTCL),A
+                RET
+
+                ; GENERIC
+
+.GEN            XOR     A
+                LD      (FILEHAND),A
+                LD      HL,#0000
+                LD      (SIZETRANS),HL
+                LD      (SIZETRANS + 2),HL
+                LD      (FILESIZE),HL
+                LD      (FILESIZE + 2),HL
+
+                LD      A,(XPROTCL)
+                CP      YMODEM
+                JR      Z,.YMODEM
+                CP      XMODEMCRC
+                JP      Z,.XMODMCRC
+                 
+                ; >>> XMODEM <<<
+
+.XMODEM         LD      DE,XYSDXMOD
+                LD      A,NAK
+                LD      HL,XMODPKSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+
+                ; >>> YMODEM <<<
+
+.YMODEM         LD      DE,XYSDYMOD
+                LD      A,ACTCRC
+                LD      HL,YMODPKSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+                ; >>> XMODEM CRC <<<
+
+.XMODMCRC       LD      DE,XYSDXMODC
+                LD      A,ACTCRC
+                LD      HL,XMODCPSZ
+                LD      BC,XMODDPSZ
+                JR      .INIT
+
+                
+                ; SET PROTOCOL AND
+                ; VALUES
+
+.INIT           LD      (XYSACT),A
+                LD      (XYPKTSZ),HL
+                LD      (XYDATSZ),BC
+                CALL    PROGOUT
+
+                
+                LD      A,(XPROTCL)
+                CP      YMODEM
+                JR      NZ,.INIFILE
+
+                ; WAIT AND GET HEADER
+
+                CALL    YMODGHED
+                JP      NC,.INIFILE
+
+                CP      EOT
+                JP      Z,.EOTFIN
+
+                ; CANCEL?
+
+                LD      DE,XYFERCAN
+                CP      CAN
+                JP      Z,XYCLOSE
+
+                ; FALLBACK?
+
+                CP      STX
+                JR      Z,.FALLB
+                
+                CP      SOH
+                JR      Z,.FALLB
+
+
+                JP      XYERROR
+
+
+                ; FALLBACK 
+
+.FALLB          LD      A,(XPROTCL)
+                CP      YMODEM
+                LD      C,XMODEMCRC
+                JR      Z,.FALLBSET
+                CP      XMODEMCRC
+                LD      C,XMODEM
+                JP      Z,.FALLBSET
+
+                ; WE CAN FALLBACK FROM XMODEM CHECKSUM
+
+                JP      XYERROR
+
+.FALLBSET       LD      A,C 
+                LD      (XPROTCL),A
+                CP      XMODEMCRC
+                JP      Z,.XMODMCRC
+                JP      .XMODEM
+
+
+
+.INIFILE        ; ERASE FILE 
+                
+                LD      HL,FILENAME2
+                CALL    DSKDEL
+                
+                ; CREATE FILE
+
+                LD      HL,FILENAME2
+                PUSH    HL
+                LD      DE,XYFILCR
+                CALL    XYPRTFIL
+                POP     HL
+                CALL    DSKCREATE
+                JR      NC,.CREATED
+
+                ; ERROR CREATING FILE
+
+                LD      DE,XYFILER
+                JP      XYCLOSE
+
+                ; FILE CREATED
+                ; A: FILEHANDLE
+                
+.CREATED        LD      (FILEHAND),A
+                LD      A,1
+                LD      (XYPKTCNT),A
+
+
+                LD      A,XERRCNT
+                LD      (XACTERR),A
+
+
+                
+                ; SEND ACTION
+
+.SACTION        LD      A,(XYSACT)
+                PUSH    AF
+                CALL    XYPRTCC
+                POP     AF
+                CALL    XYSEND
+
+                ; WAIT DATA IN RESPONSE BUFFER
+
+                LD      A,10
+                CALL    XYSTATEW
+                JR      NC,.RECVIN
+
+
+.SACTERR        LD      A,(XACTERR)
+                DEC     A
+                LD      (XACTERR),A
+                JP      Z,XYERROR
+                JR      .SACTION
+
+
+                ; -
+                ; - RECEIVE LOOP
+                ; - 
+
+
+.RECVIN         LD      DE,ONECRLF
+                CALL    PROGOUT
+
+.RECV           LD      A,XERRCNT
+                LD      (XFERERR),A
+                LD      A,'v'
+                CALL    PROGCHAR
+                
+.PACKET         LD      A,1
+                CALL    XYRECVN
+                LD      (XYPKTBUF),A
+
+                ; CHECK ACTION / HEADER
+
+                LD      A,(XYPKTBUF + PSOH)
+                CP      EOT
+                JP      Z,.EOT
+
+                ; CANCEL?
+
+                LD      DE,XYFERCAN
+                CP      CAN
+                JP      Z,XYCLOSE
+
+                ; FUTURE 1K
+
+                CP      STX
+                JP      Z,.STX
+
+                ; FUTURE BACKWARD TO XMODEM
+
+                CP      SOH
+                JP      NZ,.RETRY
+
+
+                ; SOH :D
+                ; 128 BYTE PACKET
+.SOH    
+
+                ; THIS IS NOT STANDARD
+                ; BECAUSE WE SHOULD
+                ; RECEIVE BYTE TO BYTE
+                ; WITH 1 SECOND TIMEOUT
+                ; THIS IS TCP/IP SO WE CAN 
+                ; WAIT 10 SECONDS
+                ; TO GET COMPLETE PACKET
+
+                ; DEAL WITH DOUBLE #FF PROBLEM 
+                ; IT'S A BIT COMPLEX
+                ; SO THIS IT'S ONLY A WA
+                ; WE SHOULD ADD A PARAM 
+                
+                LD      DE,(XYPKTSZ)
+                DEC     DE
+                PUSH    DE
+                LD      BC,10
+                CALL    XYBUFWA
+                POP     DE
+                JR      C,.SACTION
+
+                ; HL HAS THE SIZE OF BUFFER
+                ; WE CAN CHECK IF THE SIZE IS > WE'RE WAITING
+                ; TO CHECK DOUBLE FFs
+
+                CALL    CMPHLDE
+                JR      Z,.NORMAL
+
+                ; PACKET WITH EXTRA BYTES
+
+                PUSH    HL
+                LD      DE,XYPKTBUF.PAYLOAD
+                CALL    XYBLKREC
+                POP     BC
+
+                ; REMOVE EXTRA FFs
+
+                LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF + 1
+                CALL    XYPA2DAT 
+                JR      .PROCPKT
+
+                ; GET NORMAL PACKET
+
+.NORMAL 
+
+                LD      HL,(XYPKTSZ)
+                DEC     HL
+                LD      DE,XYPKTBUF + 1
+                CALL    XYBLKREC
+
+
+.PROCPKT        LD      A,(XYPKTCNT)
+                LD      B,A
+                LD      A,(XYPKTBUF + PPKT)
+                CP      B
+                JP      NZ,.RETRY
+                CPL     
+                LD      B,A
+                LD      A,(XYPKTBUF + PCPKT)
+                CP      B
+                JP      NZ,.RETRY
+
+                ; CHECK CRC / CHECKSUM
+                
+                LD      A,(XPROTCL)
+                CP      XMODEM
+                JR      Z,.CHKCHK
+
+                ; CHECK CRC
+
+.CHKCRC         LD      DE,XYPKTBUF + PDATA
+                LD      BC,(XYDATSZ)
+                CALL    CALCCRC
+
+                LD      A,(XYPKTBUF + PCRCH)
+                CP      H
+                JP      NZ,.RETRY
+                LD      A,(XYPKTBUF + PCRCL)
+                CP      L
+                JP      NZ,.RETRY
+                JP      .NEXT
+
+.CHKCHK         LD      HL,XYPKTBUF + PDATA
+                LD      BC,(XYDATSZ)
+                CALL    CHKSUM
+                LD      B,A
+                LD      A,(XYPKTBUF + PCHKSUM)
+                CP      B
+                JP      NZ,.RETRY
+                JP      .NEXT
+
+                ; STX, 1K BYTE PACKET
+
+.STX            LD      A,(XYPKTBUF)
+                LD      (XYPKTBUF.PAYLOAD),A
+                LD      HL,-1 + YMODPKSZ1 * 2
+                LD      DE,XYPKTBUF.PAYLOAD + 1
+
+                ; STANDARD SAYS
+                ; WE NEED WAIT 1 SECOND
+                ; PER BYTE
+                ; BUT THIS IS TCP/IP
+
+                LD      BC,10
+                EXX
+                LD      HL,YMODPKSZ1 - 1
+                EXX
+                CALL    XYBLKREW
+                JP      C,.RETRY
+
+
+                LD      DE,-1 + YMODPKSZ1 
+                CALL    CMPHLDE
+                ; C = ERROR
+                JP      C,.RETRY
+                ; Z = NO #FF
+                JP      Z,.NORMAL1K
+
+                ; EXTRA #FFs
+
+                INC     HL     
+                
+                ; HL = RECEIVED + 1
+
+                LD      B,H
+                LD      C,L
+
+                LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF 
+                CALL    XYPA2DAT 
+                JR      .PROCPKT1K
+
+
+                ; NO EXTRA #FF
+
+.NORMAL1K       LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF
+                LD      BC,YMODPKSZ1
+                LDIR
+
+                ; PROCESS 1K PACKET
+
+.PROCPKT1K      LD      A,(XYPKTCNT)
+                LD      B,A
+                LD      A,(XYPKTBUF + PPKT)
+                CP      B
+                JP      NZ,.RETRY
+                CPL     
+                LD      B,A
+                LD      A,(XYPKTBUF + PCPKT)
+                CP      B
+                JP      NZ,.RETRY
+
+               
+                ; CHECK CRC
+
+                LD      DE,XYPKTBUF + PDATA
+                LD      BC,XMOD1PSIZ
+                CALL    CALCCRC
+
+                LD      A,(XYPKTBUF + PCRCH1)
+                CP      H
+                JP      NZ,.RETRY
+                LD      A,(XYPKTBUF + PCRCL1)
+                CP      L
+                JP      NZ,.RETRY
+
+
+                ; STORE DATA
+
+                LD      A,'1'
+                CALL    PROGCHAR
+                LD      A,'A'
+                CALL    PROGCHAR
+                LD      BC,XMOD1PSIZ
+                JR      .NEXTST
+
+                ; NEXT PACKET
+
+.NEXT           LD      A,'A'
+                CALL    PROGCHAR
+                LD      BC,(XYDATSZ)
+
+.NEXTST         LD      A,(XPROTCL)
+                CP      YMODEM
+                JR      NZ,.NEXTWR
+
+                ; IF FILESIZE != 0
+
+                LD      HL,(FILESIZE)
+                LD      A,H
+                OR      L
+                JR      NZ,.NEXTN0
+                LD      DE,(FILESIZE + 2)
+                LD      A,D
+                OR      L
+                JR      Z,.NEXTWR
+                
+                ; CHECK IF SIZE TRANS > FILESIZE
+                
+.NEXTN0         LD      DE,(SIZETRANS)
+                SBC     HL,DE
+                PUSH    HL
+                LD      HL,(FILESIZE + 2)
+                LD      DE,(SIZETRANS + 2)
+                SBC     HL,DE
+                EX      DE,HL
+                POP     HL
+
+                ; DE:HL REMAINING
+
+                LD      A,D
+                OR      E
+                JR      NZ,.NEXTYME
+
+                CALL    CMPHLBC
+                JR      NC,.NEXTYME
+
+                ; TRIM
+
+                LD      B,H
+                LD      C,L
+                
+
+
+                ; FIT / TRIM TO FILESIZE
+
+.NEXTYME        LD      HL,(SIZETRANS)
+                ADD     HL,BC
+                LD      (SIZETRANS),HL
+                LD      HL,(SIZETRANS + 2)
+                LD      DE,0
+                ADC     HL,DE
+                LD      (SIZETRANS + 2),HL
+
+                ; WRITE BC BYTES FROM BUFFER
+
+.NEXTWR         LD      H,B
+                LD      L,C
+                LD      A,(FILEHAND)
+                LD      DE,XYPKTBUF + PDATA
+                CALL    DSKWRITE
+
+                ; SEND ACK
+
+                LD      A,ACK
+                CALL    XYSEND
+                LD      A,(XYPKTCNT)
+                INC     A
+                LD      (XYPKTCNT),A
+                JP      .RECV
+
+
+
+
+
+                ; ERROR / RETRY
+                
+
+.RETRY          LD      A,'N'
+                CALL    PROGCHAR
+                LD      A,NAK
+                CALL    XYSEND
+                LD      A,(XFERERR)
+                DEC     A
+                LD      (XFERERR),A
+                JP      Z,XYERROR
+                
+                CP     XERRCNT / 2
+                JP     NZ,.PACKET
+
+                ; FALLBACK
+
+                JP      .FALLB
+
+
+.EOT            CALL    XYCLOSE.CLOSE
+
+                ; YMODEM?
+
+                LD      A,(XPROTCL)
+                CP      YMODEM
+                JP      Z,.EOTYMOD
+
+                ; EOT RECEIVED
+                ; CLOSE AND END
+
+.EOTFIN         LD      A,ACK
+                CALL    XYSEND
+
+                LD      DE,XYFINISH
+                JP      PROGOUT
+
+                ; SPECIAL EOT YMODEM
+
+.EOTYMOD        LD      A,NAK
+                CALL    XYSEND
+
+                LD      A,10
+                CALL    XYRECVN
+                
+                CP      EOT
+                JR      Z,.EOTACK
+
+                PUSH    AF
+                CALL    XYPRTCC
+                CALL    PRTCRLF
+                POP     AF
+
+                ; SEND YMODEM ACK
+                ; CLEAN VARS
+                ; REDO PROCESS
+                
+.EOTACK         LD      A,ACK
+                CALL    XYSEND
+                
+                ; CLEAN VARS
+
+                LD      HL,FILENAME2
+                LD      DE,FILENAME2 + 1
+                LD      BC,40 - 1
+                LD      (HL),0
+                LDIR
+                LD      HL,#0000
+                LD      (FILESIZE),HL
+                LD      (FILESIZE + 2),HL
+
+
+                ; YMODEM BATCH
+                JP      XYDOWNLOAD.GEN
+
+
+
+
+
+
+
+
+
+; --- YMODEM                            ---------------------------------------
+
+
+                ; - 
+                ; - UPLOAD
+                ; - 
+
+
+; - YMODSHED --------
+; - YMODEM SEND HEADER
+; - OUTPUT: 
+; - CY = 1 ERROR / CANCELED
+; - 
+
+YMODSHED        LD      HL,XYPKTBUF + PDATA
+                LD      DE,XYPKTBUF + PDATA + 1
+                LD      BC,(XYDATSZ)
+                LD      (HL),0
+                LDIR    
+                
+                LD      HL,XYPKTBUF
+                LD      (HL),SOH
+                INC     HL
+                LD      (HL),0
+                INC     HL
+                LD      (HL),#FF
+                INC     HL
+                EX      DE,HL
+
+                ; FILL FILENAME
+
+                LD      HL,FILENAME2
+                CALL    GETNDFN 
+
+                ; FILL SZ EXTRA DATA 
+                ; (EPOCH, MODE, SERIAL)
+
+                PUSH    DE
+                LD      HL,(FILESIZE)
+                LD      DE,(FILESIZE + 2)
+                POP     BC 
+                CALL    XYPUTSZ
+
+
+                ; VERBOSE HEADER
+
+                LD      DE,XYSYHEAD
+                CALL    PROGOUT
+
+                LD      HL,XYPKTBUF + PDATA
+                CALL    PROGOUTZ
+
+                PUSH    HL
+                LD      A,' '
+                CALL    PROGCHAR
+                POP     HL
+                
+                ; TIMESTAMP + MODE + DUMMY + FLEFT + TLEFT
+                CALL    PROGOUTZ
+
+                LD      A,' '
+                CALL    PROGCHAR
+                LD      A,'-'
+                CALL    PROGCHAR
+                LD      A,'>'
+                CALL    PROGCHAR
+                LD      A,' '
+                CALL    PROGCHAR
+
+
+
+
+.GENERIC        LD      BC,(XYDATSZ)
+                LD      DE,XYPKTBUF + PDATA
+                CALL    CALCCRC
+                LD      A,H
+                LD      (XYPKTBUF + PCRCH),A
+                LD      A,L
+                LD      (XYPKTBUF + PCRCL),A
+
+                ; PREPARE PAYLOAD
+                
+                CALL    XYDAT2PA
+                
+                ; INIT ERROR COUNTER
+
+                LD      A,XERRCNT
+                LD      (XFERERR),A
+        
+                ; SEND PACKET
+
+.PACKET         CALL    XYSTATE
+                CALL    XYWAIT
+
+
+                ; GET SIZE / BUFFER
+                ; ACCORDING TRANSFER METHOD
+                ; AND SEND
+
+                CALL    XYGETTRF
+                CALL    XYBLKSEND
+
+                ; GET PACKET RESPONSE - A
+
+                LD      A,10
+                CALL    XYRECVN
+                JP      C,.ERROR
+
+                CP      CAN
+                RET     Z
+
+                CP      NAK
+                JP      Z,.RETRY
+
+                CP      ACK
+                JP      NZ,.ERROR
+
+                LD      A,'A'
+                CALL    PROGCHAR
+
+                ; CHECK IF IT'S FINISH TRANSMISSION HEADER
+                ; CHECK IF NAME IS NULL
+
+                LD      A,(XYPKTBUF + PDATA)
+                AND     A
+                LD      A,ACK
+                RET     Z       
+
+                ; GET PACKET RESPONSE - C
+
+                LD      A,10
+                CALL    XYRECV
+                JP      C,.ERROR
+
+                CP      CAN
+                RET     Z
+
+                CP      NAK
+                JP      Z,.RETRY
+
+                CP      ACTCRC
+                JP      NZ,.ERROR
+
+                LD      A,ACK
+                AND     A
+                RET
+
+.RETRY          LD      A,'N'
+                CALL    PROGCHAR
+                LD      A,(XFERERR)
+                DEC     A
+                LD      (XFERERR),A
+                JP      NZ,.PACKET
+
+.ERROR          SCF
+                RET
+
+
+
+; - YMODSEHE ---------
+; - YMODEM SEND EMPTY
+; - HEADER
+; - (FINISH TRANSMISION)
+
+YMODSEHE        LD      HL,XYPKTBUF
+                LD      DE,XYPKTBUF + 1
+                LD      BC,(XYPKTSZ)
+                DEC     BC
+                LD      (HL),0
+                LDIR    
+                
+                LD      HL,XYPKTBUF
+                LD      (HL),SOH
+                INC     HL
+                LD      (HL),0
+                INC     HL
+                LD      (HL),#FF
+                
+
+                ; WAIT RESPONSE / INIT ACTION 
+
+                LD      A,60
+                CALL    XYRECV
+                LD      DE,XYACT
+                RET     C
+                CP      ACTCRC
+                JP      NZ,.ERROR
+
+
+                LD      DE,XYSYEND
+                CALL    PROGOUT
+                JP      YMODSHED.GENERIC
+                
+                ; NO ACTION RECEIVED
+
+.ERROR          SCF
+                RET
+
+
+
+                ; -
+                ; - DOWNLOAD
+                ; -
+
+
+
+; - YMODGHED ---------
+; - YMODEM GET HEADER
+; - OUTPUT:
+; -     CY = 1 ERROR
+; -     FILENAME2: FILE TO CREATE
+; - IF ERROR:
+; - A = 0 -> 10 RETRYS
+; - A = CAN -> CANCEL BY SENDER
+; - A = STX / SOH -> FALLBACK
+; - A = EOT -> END OF TRANSMISSION
+; - 
+
+
+YMODGHED        LD      A,XERRCNT
+                LD      (XACTERR),A
+
+
+
+.SACTION        LD      A,(XYSACT)
+                CALL    XYSEND  
+
+
+                ; WAIT DATA IN RESPONSE BUFFER
+
+                LD      A,10
+                CALL    XYSTATEW
+                JR      NC,.RECVIN
+
+                LD      A,(XACTERR)
+                DEC     A
+                LD      (XACTERR),A
+                JP      Z,.ERROR
+                JP      .SACTION 
+
+.RECVIN         LD      DE,ONECRLF
+                CALL    PROGOUT
+
+                LD      DE,XYGYHEAD
+                CALL    PROGOUT
+
+
+                LD      A,1
+                CALL    XYRECVN
+                LD      (XYPKTBUF),A
+
+                ; CHECK ACTION / HEADER
+
+                LD      A,(XYPKTBUF + PSOH)
+                CP      CAN
+                JP      Z,.ERROR
+
+                CP      STX
+                JR      Z,.PACK1K
+
+                CP      SOH
+                JP      Z,.PACKET
+
+
+
+
+.RETRY          LD      DE,ERRRE
+                CALL    PROGOUT
+                LD      DE,ONECRLF
+                CALL    PROGOUT
+                LD      A,(XACTERR)
+                DEC     A
+                LD      (XACTERR),A
+                JP      Z,.ERROR
+                CALL    XYFLUSH
+                JP      .SACTION 
+
+                ; - 
+                ; - 1K PACKET HEADER
+                ; - 
+
+.PACK1K         
+                LD      A,(XYPKTBUF)
+                LD      (XYPKTBUF.PAYLOAD),A
+                LD      HL,-1 + YMODPKSZ1 * 2
+                LD      DE,XYPKTBUF.PAYLOAD + 1
+
+                ; STANDARD SAYS
+                ; WE NEED WAIT 1 SECOND
+                ; PER BYTE
+                ; BUT THIS IS TCP/IP
+
+                LD      BC,10
+                EXX
+                LD      HL,YMODPKSZ1 - 1
+                EXX
+                CALL    XYBLKREW
+                JP      C,.RETRY
+
+
+                LD      DE,-1 + YMODPKSZ1 
+                CALL    CMPHLDE
+                ; C = ERROR
+                JP      C,.RETRY
+                ; Z = NO #FF
+                JP      Z,.NORMAL1K
+                
+                ; EXTRA #FFs
+
+                INC     HL     
+                
+                ; HL = RECEIVED + 1
+
+                LD      B,H
+                LD      C,L
+
+                LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF 
+                CALL    XYPA2DAT 
+                JR      .PROCPKT1K
+
+
+                ; NO EXTRA #FF
+
+.NORMAL1K       LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF
+                LD      BC,YMODPKSZ1
+                LDIR
+
+                ; PROCESS 1K PACKET
+
+.PROCPKT1K      LD      A,(XYPKTBUF + PPKT)
+                AND     A
+                JP      NZ,.FALLBACK
+                LD      A,(XYPKTBUF + PCPKT)
+                CP      #FF
+                JP      NZ,.RETRY
+
+                ; CHECK CRC
+
+                LD      DE,XYPKTBUF + PDATA
+                LD      BC,XMOD1PSIZ
+                CALL    CALCCRC
+
+                LD      A,(XYPKTBUF + PCRCH1)
+                CP      H
+                JP      NZ,.RETRY
+                LD      A,(XYPKTBUF + PCRCL1)
+                CP      L
+                JP      NZ,.RETRY
+
+                ; CHECK END OF TRANSMISSION  HEADER
+                ; SOH/STX, #00, #FF, #00
+
+                LD      A,(XYPKTBUF + PDATA)
+                AND     A
+                LD      A,EOT
+                JP      Z,.ERROR
+
+
+                JP      .FINISH
+
+
+                ; -
+                ; - 128 BYTES HEADER
+                ; - 
+
+.PACKET         
+               
+                LD      DE,(XYPKTSZ)
+                DEC     DE
+                PUSH    DE
+                LD      BC,10
+                CALL    XYBUFWA
+                POP     DE
+                JP      C,.RETRY
+
+                ; HL HAS THE SIZE OF BUFFER
+                ; WE CAN CHECK IF THE SIZE IS > WE'RE WAITING
+                ; TO CHECK DOUBLE FFs
+
+                CALL    CMPHLDE
+                JR      Z,.NORMAL
+
+                ; PACKET WITH EXTRA BYTES
+
+                PUSH    HL
+                LD      DE,XYPKTBUF.PAYLOAD
+                CALL    XYBLKREC
+                POP     BC
+
+                ; REMOVE EXTRA FFs
+
+                LD      HL,XYPKTBUF.PAYLOAD
+                LD      DE,XYPKTBUF + 1
+                CALL    XYPA2DAT 
+                JR      .PROCPKT
+
+                ; GET NORMAL PACKET
+
+.NORMAL         LD      HL,(XYPKTSZ)
+                DEC     HL
+                LD      DE,XYPKTBUF + 1
+                CALL    XYBLKREC
+
+                ; CHECK YMODEM HEADER
+
+.PROCPKT        LD      A,(XYPKTBUF + PPKT)
+                AND     A
+                JP      NZ,.FALLBACK
+
+                LD      A,(XYPKTBUF + PCPKT)
+                CP      #FF
+                JP      NZ,.RETRY
+
+                ; CHECK CRC
+
+                LD      DE,XYPKTBUF + PDATA
+                LD      BC,(XYDATSZ)
+                CALL    CALCCRC
+
+                LD      A,(XYPKTBUF + PCRCH)
+                CP      H
+                JP      NZ,.RETRY
+                LD      A,(XYPKTBUF + PCRCL)
+                CP      L
+                JP      NZ,.RETRY
+
+
+                ; CHECK END OF TRANSMISSION  HEADER
+                ; SOH/STX, #00, #FF, #00
+
+                LD      A,(XYPKTBUF + PDATA)
+                AND     A
+                JP      Z,.ENDHEAD
+
+
+                ; EXTRACT FILENAME2
+
+.FINISH         ; SHOW HEADER 
+
+                LD      HL,XYPKTBUF + PDATA
+                CALL    PROGOUTZ
+
+                PUSH    HL
+                LD      A,' '
+                CALL    PROGCHAR
+                POP     HL
+                
+                PUSH    HL
+                ; FILESIZE + MOD ETC...
+                CALL    PROGOUTZ
+                POP     HL
+                
+                ; GET FILESIZE
+
+                CALL    STR2INTZ
+                LD      (FILESIZE),HL
+                LD      (FILESIZE + 2),DE
+
+                
+                ; EXTRACT FILENAME AND
+                ; CUT TO 8.3 DOS FILENAME
+                
+                LD      HL,XYPKTBUF + PDATA
+                LD      DE,BUFFER
+                CALL    GETNDFN
+                
+                LD      HL,BUFFER
+                LD      DE,FILENAME2
+                CALL    TODOSFN
+
+                LD      DE,ONECRLF
+                CALL    PROGOUT
+                
+                ; SEND ACK
+
+                LD      A,ACK
+                CALL    XYSEND
+
+                LD      A,ACK
+                AND     A
+                RET
+
+                ; CHECK IF THERE IS NO YMODEM
+                ; YMODEM ON SOME SYSTEMS CAN RECEIVE HEADER
+                ; BUT SEND AS XMODEM 1K
+                
+.FALLBACK       LD      A,(XYPKTBUF + PPKT)
+                CP      #01
+                JP      NZ,.RETRY
+                LD      A,(XYPKTBUF + PCPKT)
+                CP      #FE
+                JP      NZ,.RETRY
+
+                ; YEAH FALLBACK 
+                LD      DE,ERRFALC
+                CALL    PROGOUT
+
+                ; SOH OR STX
+                LD      A,(XYPKTBUF + PSOH)
+
+.ERROR          SCF
+                RET
+
+                ; END TRANSMISSION HEADER
+                ; SOH/STX, #00, #FF, #00
+
+.ENDHEAD        LD      DE,ENDHEAD 
+                CALL    PROGOUT
+                LD      A,EOT
+                JR      .ERROR
+
+
+
+
+; --- BUFFER / SECTOR / BDOS            ---------------------------------------
+
+
+; - XYPUTSZ ----------
+; - FILL SZ (YMODEM) HEADER
+; - DEHL: FILESIZE
+; - BC: BUFFER TO DEST
+; - 
+
+XYPUTSZ         PUSH    BC
+                CALL    B2D32
+                POP     DE
+
+                ; FILL FILESIZE
+
+                PUSH    HL
+                CALL    .FILLS
+
+                ; TIMESTAMP
+                ; THIS IS A FAKE
+                ; BECAUSE GET MODIFICATION EPOCH TIMESTAMP
+                ; IT'S A BIT COMPLEX FOR OUR BELOVED MSX
+                ;
+
+.TSTAMP         LD      A,' '
+                LD      (DE),A
+                INC     DE
+                LD      HL,.FAKETS
+                LD      BC,.FAKETSE - .FAKETS
+                LDIR    
+
+                ; FINALLY WE COPY AGAIN
+                ; FILESIZE (TOTAL BYTES LEFT)
+                ; 
+
+                POP     HL
+                
+
+                ; FILESIZE SZ FORMAT
+
+.FILLS          LD      A,(HL)
+                INC     HL
+                AND     A
+                RET     Z
+                LD      (DE),A
+                INC     DE
+                JR      .FILLS
+
+
+                ; FAKE EPOCH OCTAL ?¿? TIMESTAMP
+                ; 01/01/2022
+                ; OCTAL FSTAT.ST_MTIME
+
+.FAKETS         DEFM    "14163714600"
+                DEFB    ' '
+
+                ; FSTAT ST_MODE
+                ; + DUMMY
+                ; + FILES LEFT
+
+                DEFM    "0 0 1"
+                DEFB    ' '
+.FAKETSE        
+
+
+; - XYFSIZ -----------
+; - CONVERT FILESIZE
+; - TO ASCII HEX 
+; - HL FILESIZE (4 BYTES)
+; - DE: POINTER TO DEST
+; - 
+
+XYFSIZ          INC     HL 
+                CALL    .H
+                DEC     HL
+                CALL    .H
+                INC     HL
+                INC     HL
+                INC     HL
+                CALL    .H
+                DEC     HL
+                CALL    .H
+                XOR     A
+                LD      (DE),A
+                RET
+.H              LD      A,(HL)
+                SRL     A
+                SRL     A
+                SRL     A
+                SRL     A
+                CALL    .GETHEX
+                CP      '0'
+                JR      Z,.L
+                LD      (DE),A
+                INC     DE
+.L              LD      A,(HL)
+                CALL    .GETHEX
+                CP      '0'
+                RET     Z
+                LD      (DE),A
+                INC     DE
+                RET 
+.GETHEX         AND     #0F
+                CP      10
+                JR      C,.GETHEXN
+                ADD     A,7
+.GETHEXN        ADD     A,'0'
+                RET
+
+
+; - XYDAT2PA ---------
+; - DATA TO PAYLOAD
+; - DEAL WITH DOUBLE #FF
+; - 
+
+
+XYDAT2PA        LD      A,(XYPKTBUF + PSOH)
+                CP      SOH
+                JR      Z,.SOH
+
+                ; 1024 VERSION
+
+.STX            LD      BC,XMOD1PSIZ
+                LD      DE,XYPKTBUF + PDATA
+                CALL    CALCCRC
+                LD      A,H
+                LD      (XYPKTBUF + PCRCH1),A
+                LD      A,L
+                LD      (XYPKTBUF + PCRCL1),A
+                LD      BC,YMODPKSZ1
+                JR      .PAYSTX
+
+
+
+                ; 128 BYTES VERSION
+
+.SOH            LD      BC,(XYDATSZ)
+                LD      DE,XYPKTBUF + PDATA
+                CALL    CALCCRC
+                LD      A,H
+                LD      (XYPKTBUF + PCRCH),A
+                LD      A,L
+                LD      (XYPKTBUF + PCRCL),A
+                
+                ; IF PROTOCOL IS XMODEM 
+                ; WE NEED CALC CHECKSUM
+
+                LD      A,(XPROTCL)
+                CP      XMODEM
+                JR      NZ,.PAYLOAD
+                
+                LD      BC,(XYDATSZ)
+                LD      HL,XYPKTBUF + PDATA
+                CALL    CHKSUM
+                LD      (XYPKTBUF + PCHKSUM),A
+
+                
+                ; PREPARE PAYLOAD
+
+.PAYLOAD        LD      BC,(XYPKTSZ)
+.PAYSTX         LD      HL,XYPKTBUF
+                LD      DE,XYPKTBUF.PAYLOAD
+.PAYLOOP        LD      A,(HL)
+                LD      (DE),A
+                INC     HL
+                INC     DE
+                CP      #FF
+                JR      NZ,.PAYNEXT
+                LD      (DE),A
+                INC     DE
+.PAYNEXT        DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,.PAYLOOP
+
+                EX      DE,HL
+                LD      DE,XYPKTBUF.PAYLOAD
+                SBC     HL,DE
+                LD      (XYPKTBUF.PAYSIZE),HL
+                RET
+
+
+
+; - XYPA2DAT --------
+; - PAYLOAD TO DATA
+; - DEAL WITH DOUBLE #FF
+; - HL: PAYLOAD DATA
+; - DE: DATA POINTER
+; - BC: SIZE OF PAYLOAD
+; - 
+
+XYPA2DAT        LD      A,(HL)
+                INC     HL
+                LD      (DE),A
+                INC     DE
+                DEC     BC
+                INC     A
+                JR      NZ,.NEXT
+                DEC     BC
+                INC     HL
+.NEXT           LD      A,B
+                OR      C
+                JR      NZ,XYPA2DAT
+                RET
+
+
+
+
+; - XYGETTRF -------
+; - RETURN PAYLOAD (TELNET TRANSFER)
+; - OR PACKET BUFFER
+; - AND SIZE
+; - OUTPUT:
+; -     DE: BUFFER
+; -     HL: PACKET SIZE
+; - 
+       
+XYGETTRF        LD      A,(XYTRANS)
+                LD      DE,XYPKTBUF.PAYLOAD
+                LD      HL,(XYPKTBUF.PAYSIZE)
+                CP      TELTRF
+                RET     Z
+                LD      DE,XYPKTBUF
+                LD      A,(XYPKTBUF + PSOH)
+                CP      STX
+                LD      HL,(XYPKTSZ)
+                RET     NZ
+                LD      HL,YMODPKSZ1
+                RET
+
+
+
+; - XYGETTXO ---------
+; - RETURNS STX OR SOH
+; - AND SIZE
+; - ACCODING FILESIZE AND TRANSMITED
+; - AND PROTOCOL
+
+XYGETTXO        LD      A,(XPROTCL)
+                CP      YMODEM
+                JR      NZ,.SOH
+
+                ; ONLY YMODEM (BY THE MOMENT)
+
+                ; CHECKS TRANSFERED AND FILESIZE
+                ; GET REMAINING
+
+                LD      HL,(FILESIZE)
+                LD      BC,(SIZETRANS)
+                SBC     HL,BC
+                EX      DE,HL
+                LD      HL,(FILESIZE + 2)
+                LD      BC,(SIZETRANS + 2)
+                SBC     HL,BC
+                EX      DE,HL
+
+                ; DE:HL REMAINING
+
+
+                LD      A,D
+                OR      E
+                JR      NZ,.STX
+               
+                ; DE = 0
+
+                LD      BC,XMODDPSZ
+                SBC     HL,BC
+                JR      Z,.SOH
+                JR      C,.SOH
+
+                ; > 128 BYTES, STX
+
+.STX            LD      HL,XMOD1PSIZ
+                LD      A,STX
+                RET
+
+                ; <= 128 BYTES, SOH
+                
+.SOH            LD      HL,(XYDATSZ)
+                LD      A,SOH
+                RET     
+
+
+
+; --- SEND / RCV                        ---------------------------------------
+
+
+; - XYRECV -----------
+; - WAIT RECEIVE 1 BYTE
+; - A: TIMEOUT (SECONDS)
+; - KEEPS C (CHECKSUM)
+; - OUTPUT: 
+; -     A: BYTE RECEIVED
+; -
+
+XYRECV          LD      B,A
+                XOR     A
+                LD      (JIFFY),A
+
+
+.RETRY          PUSH    BC
+                LD      HL,#0001
+                LD      DE,XYGETBUF
+                CALL    TCPRCV
+                LD      A,B
+                OR      C
+                JR      Z,.TIMEOUT
+                CALL    XYFLUSH
+                POP     BC
+                AND     A
+                LD      A,(XYGETBUF)
+                RET
+
+.TIMEOUT        CALL    XYWAIT
+                POP     BC
+                LD      A,(JIFFY)
+                CP      60
+                JR      C,.RETRY 
+                XOR     A
+                LD      (JIFFY),A
+                DEC     B
+                JR      NZ,.RETRY
+
+                ; TIMEOUT
+                
+                SCF
+                RET
+
+
+
+; - XYRECVN -----------
+; - WAIT RECEIVE 1 BYTE
+; - A: TIMEOUT (SECONDS)
+; - KEEPS C (CHECKSUM)
+; - WITHOUT FLUSH DATA
+; - OUTPUT: 
+; -     A: BYTE RECEIVED
+; -
+
+XYRECVN         LD      B,A
+                XOR     A
+                LD      (JIFFY),A
+
+
+.RETRY          PUSH    BC
+                LD      HL,#0001
+                LD      DE,XYGETBUF
+                CALL    TCPRCV
+                LD      A,B
+                OR      C
+                JR      Z,.TIMEOUT
+                POP     BC
+                AND     A
+                LD      A,(XYGETBUF)
+                RET
+
+.TIMEOUT        CALL    XYWAIT
+                POP     BC
+                LD      A,(JIFFY)
+                CP      60
+                JR      C,.RETRY 
+                XOR     A
+                LD      (JIFFY),A
+                DEC     B
+                JR      NZ,.RETRY
+
+                ; TIMEOUT
+                
+                SCF
+                RET
+
+
+
+; - XYBLKREW ---------
+; - WAIT UNTIL RECEIVE
+; - SIZE OF BYTES
+; - BC: TIMEOUT
+; - DE: BUFFER
+; - HL: MAX SIZE OF BUFFER
+; - HL': MIN SIZE OF DOWNLOAD 
+; - OUTPUT
+; -     HL: RECV BYTES
+; -     CY = 1 ERROR
+; -
+
+XYBLKREW        XOR     A
+                LD      (JIFFY),A
+                LD      (RECWTOU),BC
+                LD      (RECWBUF),DE
+                LD      (RECWMAX),HL
+                EXX
+                LD      (RECWMIN),HL
+                LD      HL,#0000
+                LD      (RECWBYT),HL
+                EXX
+
+.LOOP           CALL    XYWAIT
+                LD      HL,(RECWMAX) 
+                LD      DE,(RECWBUF)
+                CALL    TCPRCV
+                LD      HL,(RECWBUF)
+                ADD     HL,BC
+                LD      (RECWBUF),BC
+                AND     A
+                LD      HL,(RECWMAX)
+                SBC     HL,BC
+                LD      (RECWMAX),HL
+                LD      HL,(RECWBYT)
+                ADD     HL,BC
+                LD      (RECWBYT),HL
+                LD      DE,(RECWMIN)
+                CALL    CMPHLDE
+                JR      C,.TIMEOUT
+
+                
+                ; WE'VE MIN SIZE
+                ; WE NEED CHECK IF THERE ARE
+                ; MORE BYTES TO RECEIVE
+
+                CALL    XYWAIT
+                CALL    XYSTATE
+                LD      A,H
+                OR      L
+                JR      NZ,.LOOP
+
+
+.END            LD      HL,(RECWBYT)
+                RET
+
+
+.TIMEOUT        LD      A,(JIFFY)
+                CP      60
+                JR      C,.LOOP
+                XOR     A
+                LD      (JIFFY),A
+                LD      BC,(RECWTOU)
+                DEC     BC
+                LD      (RECWTOU),BC
+                LD      A,B
+                OR      C
+                JR      .LOOP
+
+.ERROR          LD      HL,(RECWBYT)
+                SCF
+                RET
+
+
+
+
+
+
+; - XYBLKREC ----------
+; - BLOCK RECEIVE
+; - HL: SIZE
+; - DE: BUFFER
+; - 
+
+XYBLKREC        PUSH    BC
+                CALL    TCPRCV
+                POP     BC
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+                RET 
+               
+
+
+
+
+
+; - XYBLKSEND --------
+; - HL: SIZE
+; - DE: BUFFER
+; - 
+
+XYBLKSEND       PUSH    DE
+                LD      DE,TCP_BLK_SIZE
+                CALL    CMPHLDE
+                LD      BC,TCP_BLK_SIZE
+                JR      NC,.OK
+                LD      B,H
+                LD      C,L
+.OK             POP     DE
+
+
+.SEND           PUSH    HL
+                PUSH    DE
+                PUSH    BC
+                LD      H,B
+                LD      L,C
+                LD      C,1
+                CALL    TCPWSEND
+                POP     BC
+                POP     DE
+                POP     HL
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+
+                
+                SBC     HL,BC
+                RET     Z
+                
+                EX      DE,HL
+                ADD     HL,BC
+                EX      DE,HL
+
+
+                JR      XYBLKSEND
+
+
+
+; - XYSEND ------------
+; - SEND 1 BYTE
+; - ADD TO CHECKSUM  C CHECKSUM
+; - A: BYTE TO SEND
+; - 
+
+XYSEND          PUSH    BC
+                PUSH    AF
+                LD      DE,XYGETBUF
+                LD      (DE),A
+                LD      HL,#0001
+                LD      C,1
+                CALL    TCPWSEND
+                CALL    XYWAIT
+                POP     AF
+                POP     BC
+                ADD     A,C
+                LD      C,A
+                RET
+
+
+; - XYWAIT -----------
+; - TCP WAIT + CHECK KEYS
+; - 
+
+XYWAIT          PUSH    BC 
+                EI
+                HALT
+                CALL    TCPWAIT
+                POP     BC
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+                RET 
+
+
+
+; - XYBUFWA ----------
+; - WAITS UNTIL
+; - BUFFER HAS
+; - XXX DATA
+; - DE: SIZE
+; - BC: SECONDS TIMEOUT
+; - OUTPUT: 
+; -     HL: BYTES IN BUFFER
+; - 
+
+XYBUFWA         XOR     A
+                LD      (JIFFY),A
+.LOOP           PUSH    DE 
+                CALL    XYWAIT
+                CALL    XYSTATE
+                POP     DE
+                CALL    CMPHLDE
+                RET     NC
+                LD      A,(JIFFY)
+                CP      60
+                JR      C,.LOOP
+                XOR     A
+                LD      (JIFFY),A
+                DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,.LOOP
+                SCF
+                RET
+
+
+
+; - XYSTATEW --------
+; - GET STATE WITH TIMEOUT
+; - A: SECONDS
+; - CY = 1 TIMEMOUT
+; - 
+
+XYSTATEW        LD      B,A
+                XOR     A
+                LD      (JIFFY),A
+.LOOP           CALL    XYWAIT
+                CALL    XYSTATE
+                LD      A,H
+                OR      L
+                RET     NZ
+                LD      A,(JIFFY)
+                CP      60
+                JR      C,.LOOP
+                XOR     A
+                LD      (JIFFY),A
+                DEC     B
+                JR      NZ,.LOOP
+                SCF
+                RET
+
+
+; - XYSTATE ----------
+; - CALL TCP STATE
+; - AND CHECK EXIT
+; - OUTPUT: 
+; -     HL: BYTES PENDING
+; - 
+
+XYSTATE         PUSH    BC 
+                CALL    TCPSTATE
+                POP     BC
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+                RET
+
+
+
+
+; - XYFLUSH  ---------
+; - FLUSH RECV DATA
+; - 
+
+XYFLUSH         JP      TCPFLUSH    
+                 
+              
+             
+
+
+; --- ERRORS                            -----------------------------------------
+
+
+
+; - XYERROR ----------
+; - SHOW MESSAGE
+; - AND CANCEL TRANSFER
+; - 
+
+XYERROR         CALL    XYFLUSH 
+                LD      DE,XYERR
+                CALL    XYCLOSE
+
+; - XYCANCEL ---------
+; - CANCEL TRANSFER
+; - 
+
+XYCANCEL        LD      A,CAN
+                CALL    XYSEND
+                LD      A,CAN
+                CALL    XYSEND
+                LD      A,CAN
+                CALL    XYSEND
+                LD      A,CAN
+                CALL    XYSEND
+                JP      XYCLOSE.CLOSE
+
+
+
+
+
+
+; --- VERBOSE                           -----------------------------------------
+
+
+
+; - XYPRTFIL ---------
+; - PRINT FILENAME
+; - DE: STRING BEFORE
+; - HL: FILENAMEZ
+; - 
+
+XYPRTFIL        PUSH    HL
+                CALL    PROGOUT
+                POP     HL
+.LOOP           LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.END
+                PUSH    HL
+                CALL    PROGCHAR
+                POP     HL
+                JR      .LOOP
+.END            LD      DE,ONECRLF
+                JP      PROGOUT
+
+
+
+
+
+; - XYCLOSE -------------
+; - BDOS _STROUT AND CLOSE
+; - 
+
+XYCLOSE         CALL    PROGOUT
+.CLOSE          LD      A,(FILEHAND)
+                AND     A
+                RET     Z
+                CALL    DSKCLOSE
+                XOR     A
+                LD      (FILEHAND),A
+                RET     
+
+
+; - XYPRTCC ----------
+; - PRINT CONTROL CODE
+; - A: CODE
+; - 
+
+
+XYPRTCC         LD      DE,CTRLACK
+                CP      ACK
+                JP      Z,PROGOUT
+                LD      DE,CTRLNAK
+                CP      NAK
+                JP      Z,PROGOUT
+                LD      DE,CTRLCAN
+                CP      CAN
+                JP      Z,PROGOUT
+                LD      DE,CTRLCRC
+                CP      ACTCRC
+                JP      Z,PROGOUT
+                CP      ACTYG
+                LD      DE,CTRLYG
+                JP      Z,PROGOUT
+                CP      SOH
+                LD      DE,CTRLSOH
+                JP      Z,PROGOUT
+                CP      STX
+                LD      DE,CTRLSTX
+                JP      Z,PROGOUT
+                CP      EOT
+                LD      DE,CTRLEOT
+                JP      Z,PROGOUT
+
+                JP      PRINTHEX
+
+
+
+; --- CHECKSUM / CRC 16                 -----------------------------------------
+
+
+; - CHKSUM -----------
+; - CALCULE CHECKSUM
+; - HL: BUFFER
+; - BC: SIZE
+; - OUTPUT:
+; -     A: CHECKSUM
+
+CHKSUM          XOR     A
+                PUSH    AF
+
+.LOOP           POP     AF 
+                ADD     A,(HL)
+                INC     HL
+                PUSH    AF 
+                DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,.LOOP
+                POP     AF
+                RET
+
+
+
+; - CALCCRC ----------
+; - 128 BYTES 16 BITS CRC
+; - DE: BUFFER POINTER
+; - BC: SIZE
+; - OUTPUT:
+; -     HL: CRC 
+; -
+
+CALCCRC         LD      HL,#0000
+.LOOP           LD      A,(DE)
+                INC     DE
+                PUSH    BC
+                CALL    XMODCRC
+                POP     BC
+                DEC     BC
+                LD      A,B
+                OR      C
+                JP      NZ,.LOOP
+                RET
+
+
+; - XMODCRC ---------
+; - XMODEM 16 BITS CRC
+; - HL OLD CRC
+; - A NEW BYTE
+; - OUTPUT HL CRC UPDATED
+; - 
+
+XMODCRC         XOR     H               
+                LD      B,A             
+                LD      C,L             
+                RRCA                    
+                RRCA                    
+                RRCA                    
+                RRCA                    
+                LD      L,A             
+                AND     #0F             
+                LD      H,A             
+                XOR     B               
+                LD      B,A             
+                XOR     L               
+                AND     #F0             
+                LD      L,A             
+                XOR     C               
+                ADD     HL,HL           
+                XOR     H               
+                LD      H,A             
+                LD      A,L             
+                XOR     B               
+                LD      L,A             
+                RET           
+
+.END    
+
+
+
+
+

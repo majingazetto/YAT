@@ -1,0 +1,818 @@
+-----------------------------------------
+YAT Yet Another Terminal v.1.0
+2021 - 2022 Armando Pérez
+
+Based on awesome TCPCON and Telnet of:
+    Néstor Soriano (Konamiman)
+    Oduvaldo Pavan Junior (ducasp)
+-----------------------------------------
+
+
+
+ -------- CONTENTS
+
+ 1.- INTRODUCTION / AIM.
+
+ 2.- FEATURES.
+
+    2.1.- TCP/IP UNAPI
+    2.2.- YMODEM.
+    2.3.- DOS 2.
+    2.4.- ANSI.
+    2.5.- TELNET.
+
+ 3.- USING YAT.
+
+    3.1.- COMMAND LINE / CONNECTION.
+    3.2.- CONFIG, KEYS AND ACTIONS.
+    3.3.- HELP.
+    3.4.- DOWNLOAD FILE.
+    3.5.- UPLOAD FILE.
+    3.6.- SELECT FILE TO UPLOAD / DOWNLOAD.
+    3.7.- SELECT TRANSMISSION PROTOCOL.
+    3.8.- SELECT TRANSFER TERMINAL TYPE.
+    3.9.- CLOSING / ABORTING CONNECTION.
+
+ 4.- PROTOCOLS.
+
+ 5.- FILE TRANSMISSION.
+
+    5.1.- UPLOADING A FILE.
+    5.2.- DOWNLOADING A FILE.
+
+ 6.- UPLOAD AND DOWNLOAD QWK OFFLINE MAIL.
+
+    6.1.- EYE OF THE BEHOLDER BBS (EOTB).
+    6.2.- HISPAMSX BBS.
+    6.3.- SOTANO MSX BBS.
+
+ 7.- SOURCE FILES / ASSEMBLING YAT.
+
+ 8.- THANKS TO...
+
+
+ -------- 1.- INTRODUCTION / AIM.
+
+YAT is another telnet program for MSX. There are a lot of great terminal/telnet/
+communication programs in MSX. RS232 like COMS6, ERIX or BaDCaT Wifi
+Modem and TCP/IP UNAPI like Ducasp Telnet or Konamiman's simplified terminal
+TCPCON.
+
+Why a new one? Because there is no terminal for TCP/IP UNAPI supporting Ymodem
+upload protocol. In other words: You can't upload files to Bulletin Board
+Systems (BBS) or other machines using Ymodem (XModem Checksum / CRC) protocol.
+
+Why do you need a terminal/telnet with full Ymodem support? Why not? :)
+
+My main goal is returning to my BBS/Fidonet activities. I mean, I would like to
+read / write / create echomail and netmail as I used to do 20 years ago. It
+sounds very sad but today with the new and great communication cartridge/boards
+(GR8NET, DENYUNET, OBSONET, ...) we can't upload QWK mail to any BBS.
+
+YAT is a real raw terminal. This means it's not a fast / colorful terminal.
+And YAT does not support ANSI. No menus, no online-help. The aim is
+upload/download files to/from BBS systems.
+
+So if you want to enjoy ANSI Art you are in the wrong place. Neither if you want
+to use YAT as online-terminal to interact, read or write messages.
+
+
+
+
+ -------- 2.- FEATURES.
+
+    * Minimum requirements: MSX with MSX-DOS and TCP/IP UNAPI.
+
+    * Features:
+
+            - DOS2 support (support DOS2 file/path style)
+
+            - Full YModem transmission protocol (upload / download)
+
+            - Annoying ANSI clean support.
+
+
+ ---- 2.1.- TCP/IP UNAPI
+
+MSX-UNAPI is a standard procedure for defining, discovering and using new APIs
+(Application Program Interfaces) for MSX computer. TCP/IP UNAPI implements
+TCP/IP stack.
+
+YAT searches and uses any TCP/IP UNAPI implementation running on your MSX. If
+more than one implementation is available YAT uses the first one.
+
+
+ ---- 2.2.- YMODEM.
+
+YModem transmission protocol was defined / developed by Chuck Forsberg as an
+expansion of Ward Christensen's original XModem file transfer protocol in 1985.
+YModem extends Xmodem mainly with 3 features:
+
+    - CRC instead Checksum (previously developed in XModem CRC extension).
+
+    - Adds block 0 "header" with filename, size, date of file allowing "batch"
+      transfers (multiple files) and removes the extra "padding" at end of file.
+
+    - Allowed 128 and 1024 block sizes improving transmission speed (previously
+      developed in Xmodem 1k extension).
+
+YModem was developed thinking in the full XModem backward compatibility. Namely
+YAT, supporting full YModem protocol, has native and complete XModem, XModem CRC
+and XModem 1k support.
+
+However, this version still does not support the modern YModem G protocol.
+
+
+ ---- 2.3.- DOS 2.
+
+YAT supports MSX-DOS2 and higher operating system (like Nextor). You can fill
+"Upload / Download" file with DOS2 filename/path style as C:\YAT\UPLOAD\EOTB-BBS.REP
+
+
+ ---- 2.4.- ANSI.
+
+Colorful ANSI Art is awesome. There are a lot of sites, programs and BBSs where
+you can enjoy ANSI Art / Colors.
+
+YAT is using text mode with no colors so it can't show  ANSI Colors nor ANSI Art
+(ANSI sequences are tossed).
+
+However YAT tries to toss ANSI sequences to avoid showing "annoying" chars in
+screen. It's not perfect, though.
+
+Please visit Sotano MSX BBS and enjoy ANSI with Ducasp Telnet! (sotanomsxbbs.org)
+
+
+ ---- 2.5.- TELNET.
+
+YAT isn't a real Telnet. It's not a fully compliant telnet protocol. However it
+can parse easy telnet commands and send to BBSs terminal type and window size.
+This is not the aim of YAT as you know, but we can avoid problems when
+navigating through menus and BBSs options.
+
+YAT "talks" with the BBS and "introduce" YAT as Telnet program. This is
+necessary to try to avoid problems with "double #FF" sequence in upload/download
+process.
+
+
+
+
+ -------- 3.- USING YAT.
+
+YAT is easy to understand and to use, though the lack of menus and the crudeness
+of the text-only screen could drive the user crazy. However, if your regular
+activity is to upload and download mail you will always follow the same actions.
+
+
+ ---- 3.1.- COMMAND LINE  / CONNECTION.
+
+YAT usage:
+
+    Yet Another Terminal 1.0
+    UNAPI TCP/IP Simplified Terminal
+    with YMODEM transfer support.
+    *** Based on Konamiman TCPCON ***
+    >>> 2021 - 2022 Armando Perez <<<
+
+    Usage: YAT <host | IP > [port]
+          <host | IP> : host or IP 
+          port: if not specified default 23
+
+    Example: YAT bbs.beholderbbs.org 23
+
+To establish a connection with your favorite BBSs / machine you must specify the
+host or IP and port. If port is not specified YAT will use port 23 (common BBSs
+port)
+
+Examples:
+
+    YAT bbs.beholderbbs.org
+    YAT bbs.beholderbbs.org 23
+    YAT 2.139.195.193
+    YAT sotanomsxbbs.org
+    YAT bbs.hispamsx.org 23
+
+Once connection is established YAT will execute an infinite loop:
+
+    - Get TCP/IP data
+    - Parse data (telnet commands, remove annoying ANSI...)
+    - Get input data
+    - Send input data to remote
+    - Get and process special commands input commands (upload / download /
+      options).
+
+Then you will be able to interact with the remote machine through the options
+that remote host will show you.
+
+
+ ---- 3.2.- CONFIG, KEYS AND ACTIONS.
+
+There are a few options you can change / choose. To select / change the options
+you can use these special keys any time. "Popup" will be shown with the options
+and how to select them. Also there are a few special keys and actions.
+
+    <F1>: Actually this is no an option / action but a little help + state of
+    your config options.
+
+    <F2>: Download file. Start download file with selected protocol.
+
+    <F3>: Upload file. Start upload selected file with selected protocol.
+
+    <F4>: Select filename to upload / download
+
+    <F5>: Select transmission protocol.
+
+    <SELECT>: Select (internal) Terminal Type.
+
+    <ESC>: Close connection (any time) and exit.
+
+    <CTRL> + <ESC> : Abort connection (any time) and exit.
+
+
+ ---- 3.3.- HELP.
+
+By pressing <F1> help and current configuration will be shown in the screen.
+
+Example:
+
+ << YAT HELP >>
+
+    <F1> Show this help.
+    <F2> Download file.
+    <F3> Upload file.
+    <F4> Select File to upload / download.
+    <F5> Select Transfer Protocol
+    <SELECT> Select Terminal Type
+
+ << YAT CONFIG >>
+
+ Upload File: C:\FIDONET\eotb-bbs.rep
+ Download File:  B:\MAIL\INCOMING\EOTB-BBS.QW7
+ Protocol: XModem CRC
+ Terminal Type: Telnet transfer
+
+
+ ---- 3.4.- DOWNLOAD FILE.
+
+By pressing <F2> YAT will start upload process. Please refer download section
+for details.
+
+
+ ---- 3.5.- UPLOAD FILE.
+
+By pressing <F3> YAT will start upload process. Please refer upload section
+for details.
+
+
+ ---- 3.6.- SELECT FILE TO UPLOAD / DOWNLOAD.
+
+By pressing <F4> YAT will show a popup selection with two options:
+
+ File choice:
+
+ Upload file:
+ Download file:
+
+
+Upload file will be mandatory if you want to transfer file to remote machine.
+Unlike download this filename is mandatory since YAT can't know what file you
+want to transfer.
+
+Download file will be introduced only if your remote host is not able to
+transfer files with YModem protocol (XModem or its extensions).
+
+As YAT is DOS2 compliant you can use DOS2 file/path style format for your
+filenames. For example:
+
+ Upload file: D:\MY\FILE\TO\UPLOAD.LZH
+ Download file: D:\MY\FILE\FROM\REMOTE.TXT
+
+To select file, introduce filename and press RETURN. You can check your
+selection showing help (<F1>).
+
+
+ ---- 3.7.- SELECT TRANSMISSION PROTOCOL.
+
+By pressing <F5> YAT will show:
+
+ Protocol choices:
+
+ <X> XModem (Checksum)
+ <C> XModem CRC
+ <Y> YModem
+
+ Select protocol (+ ENTER):
+
+You are allowed to select protocol (by pressing <X>, <C>, <Y> + ENTER) or abort
+choice by pressing ENTER without option. Abort will keep your current protocol
+option.
+
+By default YAT starts with YModem option.
+
+
+ ---- 3.8.- SELECT TRANSFER TERMINAL TYPE.
+
+By pressing <SELECT> YAT will show:
+
+ Term Transfer choices:
+
+ <T> Telnet (double FF)
+ <M> Terminal
+ Select term (+ENTER):
+
+You are allowed to select protocol (by pressing <T> or <M> + ENTER) or abort
+choice by pressing ENTER without option. Abort will keep your current term
+transfer option.
+
+By default YAT start with Telnet transfer option.
+
+
+ ----- 3.9.- CLOSING / ABORTING CONNECTION.
+
+By pressing (any time) <ESC> connection will be closed and YAT will return to
+DOS.
+
+By pressing (any time) <CTRL> + <ESC> connection will be aborted and YAT will
+return to DOS.
+
+You can cancel your connection even during a transfer.
+
+
+
+
+ -------- 4.- PROTOCOLS.
+
+YAT is fully compatible with:
+
+    - YModem Batch
+    - YModem
+    - XModem CRC 1k
+    - XModem CRC
+    - XModem Checksum
+
+YAT tries to detect the protocol used by remote host both in upload and
+download. And YModem _should be_ backward compatible with XModem. However there
+are tons of implementations of these protocols and we recommend to select the
+protocol before the transfer.
+
+Namely: If you know what's the protocol your remote host is using then select it
+before starting your transfers.
+
+YAT XModem CRC is fully compatible with XModem CRC and XModem 1k CRC. However
+YAT will never send 1k block (upload).
+
+XModem (general) protocols don't send / receive headers. So the remote machine
+and sender machine need the filename. If you are using XModem protocol remember
+fill Upload and/or Download filename before transfer.
+
+YAT implements the backward compatibility with XModem. If you are waiting a file
+transmission via YModem and your remote host (sender) sends XModem block YAT
+will try to store your previously filled filename.
+
+YModem Batch (real Ymodem) is only allowed in downloads. This version does not
+allow multiple files upload. However if the sender sends multiple files all of
+them will be stored on your disk.
+
+
+ -------- 5.- FILE TRANSMISSION.
+
+This chapter describes how to upload and download files to/from remote host
+(mainly BBSs) with XModem/YModem protocol support.
+
+When you press <F2> or <F3> YAT leaves the infinite send/receive loop and enters
+in a special upload / download process. The processes, both, share the same
+symbols:
+
+    * Transfer symbols:
+
+    ^  :  YAT trying to upload a block.
+    v  :  YAT trying to download a block.
+    A  :  128 bytes block uploaded/downloaded with sucess.
+    1A :  1024 bytes block uploaded/downloaded with sucess.
+    N  :  Block sent/received with error (CRC, checksum).
+
+    * Begin transmission symbols:
+
+    NAK:  Receiver waiting XModem start block.
+    C  :  Receiver waiting YModem / XModem CRC start block.
+    C  :  Receiver waiting YModem Header block.
+    G  :  Receiver waiting YModem G transmission. (not supported)
+
+
+ ---- 5.1.- UPLOADING A FILE.
+
+
+There is an important warning regarding filename. MSX-DOS(2) is case
+unsensitive. You can write your filename as (example) myfile.LZH or MYfile.lzh
+or MYFILE.LZH. However your remote host, usually, could be case sensitive.
+YModem protocol transfers the filename of the file you are uploading and the
+remote host (for example if you are uploading mail file) checks if the filename
+*match* with the filename you transferred in your Ymodem Header.
+
+In other words: If you remote host (BBS) is waiting "eotb-bbs.rep", please fill
+your filename as "eotb-bbs.rep". Don't fill it as EOTB-BBS.REP or similar. In
+that case your upload file never will be processed by the remote host.
+
+
+ * Common for all protocols:
+
+    - Select upload file by pressing <F4>.
+
+    - Select upload protocol (supported by your remote host) by pressing <F5>.
+    Remember YModem is the default protocol. And selected protocol keeps in
+    config until YAT is closed.
+
+    - Select the menus and option (in your BBS) to upload file and select protocol.
+
+    - Press <F3> to start process. Follow screen feedback / instructions.
+
+
+
+ * XModem Checksum:
+
+    - Receiver could show in screen waiting action (optional) as C or NAK.
+
+    - When you press <F3> screen will show:
+
+        Opening file: xxxxxx.xxx
+
+        Waiting Action (NAK, C, G...) from receiver ->  NAK
+
+        >>> Starting XMODEM upload <<<<
+        ^A^A^A [...]
+        ...
+        XFER Finished
+
+
+ * XModem CRC:
+
+
+    - Receiver could show in screen waiting action (optional) as C or NAK.
+
+    - When you press <F3> screen will show:
+    C
+        Opening file: xxxxxx.xxx
+
+        Waiting Action (NAK, C, G...) from receiver ->  C
+
+        >>> Starting XMODEM CRC upload <<<<
+        ^A^A^A [...]
+        ...
+        XFER Finished
+
+ * YModem:
+
+    - Receiver could show in screen waiting action (optional) as C or NAK.
+
+    - When you press <F3> screen will show:
+    CC
+        Opening file: xxxxxx.xxx
+
+        Waiting Action (NAK, C, G...) from receiver ->  C
+
+        >>> Starting YMODEM upload <<<<
+        ^ YMODEM Header: xxxxxx.xxx SSSS TTTTTTTT 0 0 1 SSSS
+        ^1A^1A^A [...]
+        ...
+        XFER Finished
+
+
+ ---- 5.2.- DOWNLOADING A FILE.
+
+  * Common for XModem Checksum / XModem CRC
+
+    - Select download filename by pressing <F4>.
+
+  * Common for all protocols
+
+    - Select download protocol (supported by your remote host) by pressing <F5>.
+    Remember YModem is the default protocol. And selected protocol keeps in
+    config until YAT is closed.
+
+    - Select the menus and option (in your BBS) to download file and select protocol.
+
+    - Press <F2> to start process. Follow screen feedback / instructions.
+
+   * XModem Checksum:
+
+        >>> Starting XMODEM download <<<
+
+        Creating file: xxxxx.xxx
+        NAK
+        vAvAvA[...]
+        ...
+        XFER Finished
+
+   * XModem CRC:
+
+        >>> Starting XMODEM CRC download <<<
+
+        Creating file: xxxxx.xxx
+        C
+        vAvAvA[...]
+        ...
+        XFER Finished
+
+   * YModem:
+
+        >>> Starting YMODEM download <<<
+
+        v YMODEM Header: xxxxxx.xxx SSSS
+        C
+        v1Av1AvA[...]
+        ...
+
+        >>> Starting YMODEM download <<<
+
+        v YMODEM Header: Received finish transmission header.
+
+
+
+
+ -------- 6.- UPLOAD AND DOWNLOAD QWK OFFLINE MAIL.
+
+
+Although all BBS systems are very similar the chapter describes how to upload
+and download QWK mail filenames to/from 3 different BBS systems.
+
+All of them support YModem so you don't need to change protocol (remember YModem
+is the default protocol).
+
+
+ ---- 6.1.- EYE OF THE BEHOLDER BBS (EOTB).
+
+
+ * Connection and welcome screen:
+
+    YAT bbs.beholderbbs.org
+
+    ...
+
+    Eye of the Beholder (#XXXX), using BBBS/Li6 v.x.xx blah.
+
+    Welcome to this BBBS system.
+
+    What is your name? Armando Perez
+
+    Please enter your password (dots will echo): .......
+
+
+
+ * User info and short menu is shown:
+
+    You are user number :x
+    Times on this system: xxxx
+    [...]
+
+    Happy birthday to:
+
+    *somebody*
+
+    Main Commands: <?> help <R>eadmenu <F>iles <Utility menu>
+    --- more --- (Y/n/c)
+
+
+ * Configuration. If your user is already configured skip the step.
+
+    - Press U (Utility Menu)
+    - Press n
+
+    - Press AF
+    - Select LZH by
+
+    - Press T
+    - Select YModem Batch by pressing YB
+
+    - Press GF
+    - Select QWK by pressing W
+
+    - Press Q for returning to main menu.
+
+
+ * Download new mail (eotb-bbs.qwX file).
+
+    - On main menu press "md" + intro.
+
+    - BBS search, packet and creates QWK file and finally shows:
+
+    Filename: eotb-bbs.qwX (on X should be a number)
+    YModem Batch send ready. Start your transfer now.
+    Starting YModem Batch send now.
+
+    - Press <F2>. File will be transfered and stored in disk.
+
+
+ * Upload new mail (eotb-bbs.rep file)
+
+    - Select your upload REP file by pressing <F4>:
+
+    Upload filename: eotb-bbs.rep
+    Download filename:
+
+    - On main menu press "mu" + intro.
+
+    - BBS shows:
+
+    Filename: eotb-bbs.rep
+    YModem Batch receive ready. Start your transfer now.
+    Starting YModem Batch receive now.
+    C
+
+    - Press <F3>: File will be transfered and processed by EOTB BBS.
+
+
+ ---- 6.2.- HISPAMSX BBS.
+
+ * Connection and welcome screen:
+
+    YAT bbs.hispamsx.org
+
+    ...
+
+     Synchronet BBS for Linux  Version 3.19  Copyright 2022 Rob Swindell
+
+HispaMSX BBS version 3.0
+Copyright 2005-2019 by Carlos Milan Figueredo
+23414 Bytes free
+Ok
+BLOAD"HISPAMSX.BIN",R
+
+    ...
+
+    Enter User Name or Number or 'New' or 'Guest'
+    Login: Armando Perez
+    Password: ******
+
+ * Main Menu:
+
+   - Press Q (QWK packet transfer)
+
+ * QWK Offline Reader Menu
+
+   - C (Change Packet configuration)
+
+        - T Archive Type (select LZH and return to main menu).
+
+ * Download new mail (HISPAMSX.qwk)
+
+    - Press D
+
+    - Press Y (YModem (SZ))
+
+
+ [+] Hang up after transfer? Yes / No (as you wish)
+
+ Start transfer now (Ctrl-X to abort):
+
+    - Press <F2>. File will be transfered and stored in disk.
+
+
+ * Upload new mail (HISPAMSX.REP)
+
+     - Select your upload REP file by pressing <F4>:
+
+    Upload filename: HISPAMSX.REP
+    Download filename:
+
+     - Press U
+
+     - Press Y (Ymodem (SZ))
+
+ [+] Hang up after transfer? Yes / No (as you wish)
+
+    - Press <F3>: File will be transfered and processed.
+
+
+
+ ---- 6.3.- SOTANO MSX BBS.
+
+
+ * Connection and welcome screen:
+
+    YAT sotanomsxbbs.org
+
+    ...
+
+
+ Mystic BBS Version xxxxxx
+ Copyright (C) 1997 - 2020 By James Coyle
+
+ (0) Ascii (No Color)
+ (1) Ansi (Color
+
+ Graphics Mode ->
+
+
+    - Press 0
+
+ [0] MS-DOS CP437
+ [1] UTF-8
+
+ Select Terminal [Enter = CP437]:
+
+    - Press Enter
+
+  Available themes:
+
+    ...
+    ...
+    ...
+
+
+    - Select theme with no graphics and no colors (usually 6)
+
+
+ [] Enter your user name: Armando Perez
+ [] Enter your password: $$$$$$$
+
+ * Main menu.
+
+    - Press M
+
+    - Press O
+
+
+ * QWK Offline Mail...
+
+    - Press A to select LZH/LHA archive type
+
+    - Press E to disable QWKE extended Packets. (No)
+
+  * Download new mail (MYSTIC.qwk)
+
+    - Press [Y] Ymodem
+
+ Press [ENTER / S]tart YModem transfer and then [F1 + G + ENTER]:
+
+    - WARNING HERE. The above Sotano MSX BBS message was intented for help
+    Ducasp's Telnet users with YModem-G transfers.
+
+    - Press ENTER
+
+    - Press <F2>. File will be transfered and stored in disk.
+
+
+  * Upload new mail (MYSTIC.rep)
+
+
+    - Select your upload REP file by pressing <F4>:
+
+    Upload filename: MYSTIC.rep
+    Download filename:
+
+    - Press U (Upload REP Packet)
+
+    - Press [Y] Ymodem
+
+ Press [ENTER / S]tart YModem transfer and then [F1 + G + ENTER]:
+
+    - Press ENTER
+
+    - Press <F3>: File will be transfered and processed.
+
+
+ -------- 7.- SOURCE FILES / ASSEMBLING YAT.
+
+The code is provided as it is. It may work in your computer, it may not work. It
+may even crash it or, eventually, create a time paradox, the result of which
+could cause a chain reaction that would unravel the very fabric of the
+space-time continuum and destroy the entire universe.
+
+To assemble YAT project you need SjasmPlus assembler:
+
+    https://github.com/z00m128/sjasmplus
+
+Also an *NIX environment system supporting "make" build automation tool. For
+Windows you can install Cygwin or MinGW.
+
+The project is presented with this organization:
+
+Makefile
+|
++--- DOC
++--- SRC
+
+
+    - Makefile: Rules and directives for make tool.
+    - DOC: Directory containing this file.
+    - SRC: Source files.
+
+To assemble type make. YAT.COM will be generaded automatically and stored in
+root directory.
+
+Type "make clean" to clean temporal files.
+
+
+
+
+ -------- 8.- THANKS TO...
+
+    - EOTB Sysop, HispaMSX BBS Sysop, Zruspa's BBS Sysop, Sotano Sysop for help
+    testing YAT.
+
+    - Oduvaldo Pavan Junior (ducasp): For developing his open source TELNET tool.
+
+    - Néstor Soriano (Konamiman) for develop the awesome TCP/IP Unapi.
+
+    - All BBS Sysops and Fidonet people for keeping alive Fidonet.
+

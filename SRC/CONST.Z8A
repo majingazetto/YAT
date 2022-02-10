@@ -1,0 +1,81 @@
+;                                       ****************************************
+;                                       * CONSTANTS                            *
+;                                       ****************************************
+
+
+; ---                                   ----------------------------------------
+
+
+VERSION         
+.MAJOR          EQU     "1"
+.MINOR          EQU     "0"
+
+
+DEFPORT         EQU     23
+DEFLPORT        EQU     #FFFF
+DEFTPAS1        EQU     2
+
+
+
+; ---  PROTOCOLS                        ----------------------------------------
+
+                ; PROTOCOLS
+
+NOPROTCL        EQU     0
+XMODEM          EQU     1
+XMODEMCRC       EQU     2
+YMODEM          EQU     3
+
+                ; DATA PACKET SIZE
+
+XMODDPSZ        EQU     #80
+XMOD1PSIZ       EQU     #400
+
+
+                ; PACKET SIZE
+
+XMODPKSZ        EQU     XMODDPSZ + 4
+XMODCPSZ        EQU     XMODDPSZ + 5
+YMODPKSZ        EQU     XMODDPSZ + 5
+
+                ; PACKET SIZE 1K
+
+XMODPKSZ1       EQU     XMOD1PSIZ + 4
+XMODCPSZ1       EQU     XMOD1PSIZ + 5
+YMODPKSZ1       EQU     XMOD1PSIZ + 5
+
+                
+
+                ; TRANSFER METHOD
+
+NOTRF           EQU     0
+TELTRF          EQU     1               ; DOUBLE FF
+TERMTRF         EQU     2               ; NO DOUBLE FF
+
+
+; ---  PACKET                           ----------------------------------------
+
+                ; OFFSETS
+
+PSOH            EQU     0
+PPKT            EQU     PSOH + 1
+PCPKT           EQU     PPKT + 1
+PDATA           EQU     PCPKT + 1
+PCHKSUM         EQU     PDATA +  XMODDPSZ
+PCRCH           EQU     PCHKSUM
+PCRCL           EQU     PCRCH + 1
+
+PCRCH1          EQU     PDATA + XMOD1PSIZ
+PCRCL1          EQU     PCRCH1 + 1
+
+
+; ---  TELNET                           ----------------------------------------
+
+
+STEIDLE         EQU     0
+STECMDPR        EQU     1
+STESUBPR        EQU     2
+STESUBWA        EQU     3
+STEESCPR        EQU     4  
+
+

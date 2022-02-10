@@ -1,0 +1,371 @@
+;                                       ****************************************
+;                                       * DATA (STRING, TABLES...              *
+;                                       ****************************************
+
+
+; --- PROGRAM                           ----------------------------------------
+
+
+                ; HELP
+
+SHELP           DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "<< YAT HELP >>"
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "<F1> Show this help."
+                DEFB    #0D, #0A
+                DEFM    "<F2> Download file."
+                DEFB    #0D, #0A
+                DEFM    "<F3> Upload file."
+                DEFB    #0D, #0A
+                DEFM    "<F4> Select File to upload / download."
+                DEFB    #0D, #0A
+                DEFM    "<F5> Select Transfer Protocol"
+                DEFB    #0D, #0A
+                DEFM    "<SELECT> Select Terminal Type"
+                DEFB    #0D, #0A, '$'
+
+                ; CONFIG
+
+SCONF           DEFB    #0D, #0A
+                DEFM    "<< YAT CONFIG >>"
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A, '$'
+.FILESEL        DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "File choice:"                
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A, '$'
+.FILEUP         DEFM    "Upload File: $"               
+.FILEDOWN       DEFM    "Download File: $"               
+.PROTOCOL       DEFM    "Protocol: $"
+.TRANSFER       DEFM    "Terminal Type: $"
+
+                ; PROTOCOL STRING TBL
+
+SPROTOCOL       DEFB    XMODEM, "XModem (Checksum)$"
+                DEFB    XMODEMCRC, "XModem CRC$"
+                DEFB    YMODEM, "YModem$"
+                DEFB    0
+
+                ; TERMINAL STRING TBL
+
+STRANSFER       DEFB    TELTRF, "Telnet transfer$"
+                DEFB    TERMTRF, "Terminal transfer$"
+                DEFB    0
+
+
+; --- OPTIONS                           ----------------------------------------
+
+                ; ALL OPTION SELECTORS HAVE
+
+                ; STRING MESSAGE TO THE USER
+                ; TABLE WITH OPTIONS NAMELY:
+                ;       BYTE: MAX CHARS ACCEPTED
+                ;       WORD: OPTIONS (STRING)
+                ;       WORD: VALUES 
+
+
+
+                ; SELECT PROTOCOL
+
+
+SOPTPROT        DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "Protocol choices:" 
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "<X> XModem (Checksum)"
+                DEFB    #0D, #0A
+                DEFM    "<C> XModem CRC"
+                DEFB    #0D, #0A
+                DEFM    "<Y> YModem"
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "Select protocol (+ ENTER): $"
+
+OPTPROT         DEFB    1 
+                DEFW    .OPTIONS
+.VALUES         DEFB    XMODEM, XMODEMCRC, YMODEM
+.OPTIONS        DEFM    "X",0
+                DEFM    "C",0
+                DEFM    "Y",0
+                DEFB    #FF
+                
+               
+                ; SELECT TRANSFER TYPE
+
+SOPTTRANS       DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "Term Transfer choices:" 
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "<T> Telnet (double #FF)"
+                DEFB    #0D, #0A
+                DEFM    "<M> Terminal"
+                DEFB    #0D, #0A
+                DEFM    "Select term (+ ENTER): $"
+OPTTRANS        DEFB    1 
+                DEFW    .OPTIONS
+.VALUES         DEFB    TELTRF, TERMTRF
+.OPTIONS        DEFM    "T",0
+                DEFM    "M",0
+                DEFB    #FF
+
+
+
+; --- UNAPI                             ----------------------------------------
+
+
+TCPIP_S         DEFM    "TCP/IP"
+                DEFS    9, 0
+
+NOTCPIP         DEFB    #0D, #0A
+                DEFM    "*** No TCP/IP UNAPI found"
+                DEFB    #0D, #0A, '$'
+
+NOTCPA          DEFM    "*** This TCP/IP UNAPI implementation does not support"
+                DEFB    #0D, #0A
+                DEFM    "    opening active TCP connections."
+                DEFB    #0D, #0A, '$'
+                
+
+; --- TCP/IP                            ----------------------------------------
+
+
+
+FLUSHBUF        DEFB    #0D, #0A
+                DEFM    ">>> Flushing TCP/IP buffer <<<"
+                DEFB    #0D, #0A, '$'
+
+USERCLOS        DEFB    #0D, #0A
+                DEFM    "*** Connection closed by user"
+                DEFB    #0D, #0A, '$'
+
+USERABOR        DEFB    #0D, #0A
+                DEFM    "*** Connection aborted by user"
+                DEFB    #0D, #0A, '$'
+
+
+RESOLVE         DEFB    #0D, #0A
+                DEFM    " >>> Resolving host name... $"
+OPENING         DEFB    #0D, #0A
+                DEFM    " >>> Opening connection... $"
+OPENED          DEFM    "OPEN!!" 
+                DEFB    #0D, #0A, #0A, "$"
+
+                ; STATUS
+
+
+RESERR          DEFB    #0D, #0A, #0D, #0A, "ERROR "
+.CODE           DEFS    6
+
+RESOK           DEFB    "OK: "
+.IP             DEFS    16
+
+
+                ; -
+                ; - STRING TABLES
+                ; - 
+
+
+                ; TCP OPEN ERROR TABLE
+
+TCPOETBL        DEFB    ERR_NO_FREE_CONN, "Too many TCP connections opened$"
+                DEFB    ERR_NO_NETWORK, "No network connection found$"
+                DEFB    ERR_CONN_EXISTS, "Connection already exists, try another local port number$"
+                DEFB    ERR_INV_PARAM, "Unespecified remote socket is not allowed on active connections$"
+                DEFB    0
+
+                ; TCP CLOSE ERROR TABLE
+
+TCPCETBL        DEFB      128 + 0, "*** Connection closed$"
+                DEFB      128 + 1, "*** Connection never used$"
+
+                ; PEER CLOSE ERROR TABLE
+
+PEERCETBL       DEFB      128 + 2, "*** Connection closed by peer$"  
+                DEFB      128 + 3, "*** Connection locally aborted$"
+                DEFB      128 + 4, "*** Connection refused (RST received)$"
+                DEFB      128 + 5, "*** Data sending timeout expired$"
+                DEFB      128 + 6, "*** Connection timeout expired$"
+                DEFB      128 + 7, "*** Internet connection lost$"
+                DEFB      128 + 8, "*** Destination host is unreachable$"
+                DEFB      0
+
+                ; TCP RCV/SEND ERROR TABLE
+
+TCPRSETBL       DEFB      ERR_CONN_STATE, "*** The connection state does not allow sending data$"
+                DEFB      ERR_BUFFER, "*** Output buffer overflow$"
+                DEFB      ERR_INV_PARAM, "*** Invalid parameter$"
+                DEFB      0
+
+                ; DNS QUERY ERROR TABLE 
+                
+DNSQETBL        DEFB    ERR_NO_NETWORK, "No network connection$"
+                DEFB    ERR_NO_DNS, "No DNS servers available$"
+                DEFB    ERR_NOT_IMP, "This TCP/IP UNAPI implementation does not support name resolution.",13,10
+                DEFB    "An IP address must be specified instead.$"
+                DEFB    0
+
+                ; DNS RESOLVE ERROR TABLE
+
+DNSRETBL        DEFB    1, "Query format error$"
+                DEFB    2, "Server failure$"
+                DEFB    3, "Name error (this host name does not exist)$"
+                DEFB    4, "Query type not implemented by the server$"
+                DEFB    5, "Query refused by the server$"
+                DEFB    6, "DNS error 6$"
+                DEFB    7, "DNS error 7$"
+                DEFB    8, "DNS error 8$"
+                DEFB    9, "DNS error 9$"
+                DEFB    10, "DNS error 10$"
+                DEFB    11, "DNS error 11$"
+                DEFB    12, "DNS error 12$"
+                DEFB    13, "DNS error 13$"
+                DEFB    14, "DNS error 14$"
+                DEFB    15, "DNS error 15$"
+                DEFB    16, "Server(s) not responding to queries$"
+                DEFB    17, "Total operation timeout expired$"
+                DEFB    19, "Internet connection lost$"
+                DEFB    20, "Dead-end reply (not containing answers nor redirections)$"
+                DEFB    21, "Answer is truncated$"
+                DEFB    0
+
+
+; --- GEN ERRORS                        ----------------------------------------
+
+
+UNKNOWN         DEFM    "*** Unknown error ("
+.CODE           DEFM    "000)$"
+
+
+; --- MISC                              ---------------------------------------
+
+
+TWOCRLF         DEFB    #0D, #0A
+ONECRLF         DEFB    #0D, #0A, '$'
+
+
+; --- X/Y MODEM                         --------------------------------------
+
+
+XYWAITAC        DEFB    #0D, #0A
+                DEFM    "Waiting Action (NAK, C, G...) from receiver -> $"
+
+XYACT           DEFB    #0D, #0A
+                DEFM    "Sorry... Action not received..."
+                DEFB    #0D, #0A, '$'
+
+XYERR           DEFB    #0D, #0A
+                DEFM    "Transfer Error..."
+                DEFB    #0D, #0A, '$'
+
+XYFERCAN        DEFB    #0D, #0A
+                DEFM    "XFER Cancelled by Receiver..."
+                DEFB    #0D, #0A, '$'
+
+XYFINISH        DEFB    #0D, #0A
+                DEFM    "XFER Finished..."
+                DEFB    #0D, #0A, '$'
+
+XYSTXMOD        DEFB    #0D, #0A
+                DEFM    ">>> Starting XMODEM upload <<<"
+                DEFB    #0D, #0A, '$'
+
+XYSTXMODC       DEFB    #0D, #0A
+                DEFM    ">>> Starting XMODEM CRC upload <<<"
+                DEFB    #0D, #0A, '$'
+
+XYSTYMOD        DEFB    #0D, #0A
+                DEFM    ">>> Starting YMODEM upload <<<"
+                DEFB    #0D, #0A, '$'
+
+
+XYSDXMOD        DEFB    #0D, #0A
+                DEFM    ">>> Starting XMODEM download <<<"
+                DEFB    #0D, #0A, '$'
+
+XYSDXMODC       DEFB    #0D, #0A
+                DEFM    ">>> Starting XMODEM CRC download <<<"
+                DEFB    #0D, #0A, '$'
+
+XYSDYMOD        DEFB    #0D, #0A
+                DEFM    ">>> Starting YMODEM download <<<"
+                DEFB    #0D, #0A, '$'
+
+XYSYHEAD        DEFM    "^ YMODEM Header: $"
+        
+XYSYEND         DEFB    #0D, #0A
+                DEFM    "End YMODEM Transmission -> $"
+
+XYGYHEAD        DEFM    "v YMODEM Header: $"
+
+        
+                ; - FILE RELATED
+
+XYFILOP         DEFB    #0D, #0A
+                DEFM    "Opening file: $"
+XYFILCR         DEFB    #0D, #0A
+                DEFM    "Creating file: $"
+
+XYFILER         DEFM    #0D, #0A
+                DEFM    "File error, aborting..."
+                DEFB    #0D, #0A, '$'
+
+                ; - CTRL CODES
+
+CTRLACK         DEFM    "ACK $"
+CTRLNAK         DEFM    "NAK $"
+CTRLCAN         DEFM    "CAN $"
+CTRLCRC         DEFM    "C $"
+CTRLYG          DEFM    "G $"
+CTRLSOH         DEFM    "SOH $"
+CTRLSTX         DEFM    "STX $"
+CTRLEOT         DEFM    "EOT $"
+
+
+                ; YMODEM HEADER
+
+ERRRE           DEFM    "Error receiving. Trying again...$"
+ERRFALC         DEFM    "Fallback to XMODEM CRC"
+                DEFB    #0D, #0A, '$'
+
+ENDHEAD         DEFM    "Received finish transmission header$"
+                DEFB    #0D, #0A, '$'
+
+
+; --- TELNET                            --------------------------------------
+
+                ; CURSOR
+
+TECUP           DEFB    #1B, '[', 'A'
+TECDOWN         DEFB    #1B, '[', 'B'
+TECFORD         DEFB    #1B, '[', 'C'
+TECBACK         DEFB    #1B, '[', 'D'
+
+
+
+                ; TERMINAL 80x24 (MSX2 OR HIGHER)
+
+TEWSIZE2        DEFB    IAC, WILL, CMD_WINDOW_SIZE, IAC, SB
+                DEFB    CMD_WINDOW_SIZE, 0, 80, 0, 24
+                DEFB    IAC
+                DEFB    SE
+.END    
+                ; TERMINAL 40x24 (9918)
+
+TEWSIZE1        DEFB    IAC, WILL, CMD_WINDOW_SIZE, IAC, SB
+                DEFB    CMD_WINDOW_SIZE, 0, 40, 0, 24
+                DEFB    IAC
+                DEFB    SE
+.END    
+
+                ; TERMINAL TYPE (NO ANSI)
+
+TETTYPE         DEFB    IAC, SB, CMD_TTYPE, IS
+                DEFB    'V', 'T', '5', '2'
+                DEFB    IAC, SE
+.END    
+                

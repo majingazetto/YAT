@@ -1,0 +1,302 @@
+;                                       ****************************************
+;                                       * HARD CONSTANS                        *
+;                                       ****************************************
+
+
+; --- SYSTEM                            ----------------------------------------
+
+
+SYSTEM          EQU     #2D
+
+
+
+; --- BIOS                              ----------------------------------------
+
+                                                 
+ENASCR_B        EQU     #44             
+DISSCR_B        EQU     #41             
+WRTVDP_B        EQU     #47             
+WRTVRM          EQU     #4D             
+FILVRM_B        EQU     #56             
+LDIRVM_B        EQU     #5C             
+LDIRMV_B        EQU     #59             
+CHGMOD          EQU     #5F             
+WRTPSG          EQU     #93             
+RDPSG           EQU     #96             
+GTSTCK          EQU     #D5             
+GTTRIG          EQU     #D8             
+SNSMAT          EQU     #141            
+ENASLT          EQU     #24             
+RSLREG          EQU     #138            
+RDSLT           EQU     #0C
+WRSLT           EQU     #14
+CHPUT           EQU     #A2
+CALSLT          EQU     #1C
+DCOMPR_B        EQU     #20
+KILBUF          EQU     #156                                              
+CHSNS           EQU     #9C
+CHGET           EQU     #9F
+EXTBIOS         EQU     #15F
+SUBROM          EQU     #15C
+CLS             EQU     #00C3
+EXTROM          EQU     #015F
+RDVDP           EQU     #013E
+CHGCPU          EQU     #180
+ERAFNK          EQU     #CC
+DSPFNK          EQU     #CF
+BREAKX          EQU     #B7
+
+
+; --- SYSTEM VARS                       ---------------------------------------
+
+
+
+HTIMI           EQU     #FD9F           
+HKEYI           EQU     #FD9A           
+CLIKSW          EQU     #F3DB           
+FORCLR          EQU     #F3E9           
+BAKCLR          EQU     #F3EA           
+BDRCLR          EQU     #F3EB           
+SCRMOD          EQU     #FCAF           
+RG0SAV          EQU     #F3DF           
+RG1SAV          EQU     RG0SAV + 1
+RG3SAV          EQU     RG0SAV + 3
+RG4SAV          EQU     RG0SAV + 4
+RG6SAV          EQU     RG0SAV + 6
+RG7SAV          EQU     RG0SAV + 7      
+EXPTBL          EQU     #FCC1           
+SLTTBL          EQU     #FCC5           
+LINL40          EQU     #F3AE
+LINL32          EQU     #F3AF
+EXTVDP          EQU     #FFE7           
+CSRY            EQU     #F3DC
+CSRX            EQU     #F3DD
+EXBRSA          EQU     #FAF8
+RAMAD0          EQU     #F341
+RAMAD1          EQU     #F342
+RAMAD2          EQU     #F343
+RAMAD3          EQU     #F344
+CNSDFG          EQU     #F3DE
+FNKSTR          EQU     #F87F
+REPCNT          EQU     #F3F7
+
+CMASK           EQU     #F92C
+CSRSW           EQU     #FCA9
+
+HSTKE           EQU     #FEDA
+HRUNC           EQU     #FECB
+HPHYD           EQU     #FFA7
+
+
+JIFFY           EQU     #FC9E
+STATFL          EQU     #F3E7 
+
+RG10SA          EQU     #FFE9                                
+RG18SA          EQU     #FFF1
+RG19SA          EQU     #FFF2
+RG23SA          EQU     #FFF6
+
+RG25SA          EQU     #FFFA
+RG26SA          EQU     #FFFB
+RG27SA          EQU     #FFFC
+
+                ; EXTBIO / UNAPI
+
+EXTBIO          EQU     #FFCA
+ARG             EQU     #F847
+
+
+
+; --- BDOS                              ---------------------------------------
+
+
+                ; DOS FUNCTION CALLS ENTRY POINT
+
+DOS             EQU     #05
+                
+                ; PARAMS
+
+
+_PARAMS         EQU     #80
+
+                ; BDOS CALLS
+                
+_CONIN          EQU     #01               
+_CONOUT         EQU     #02
+_DIRIO          EQU     #06
+_INNOE          EQU     #08     
+_STROUT         EQU     #09
+_CONST          EQU     #0B  
+_BUFIN          EQU     #0A
+
+
+_FOPEN          EQU     #0F                
+_FCLOSE         EQU     #10
+_FMAKE          EQU     #16
+_FDEL           EQU     #13
+_SETDTA         EQU     #1A
+_WRBLK          EQU     #26
+_RDBLK          EQU     #27
+_TERM0          EQU     #00
+
+                ; DOS2 CALLS
+
+_OPEN           EQU     #43
+_CREATE         EQU     #44
+_CLOSE          EQU     #45
+_READ           EQU     #48
+_WRITE          EQU     #49
+_SEEK           EQU     #4A
+_DELETE         EQU     #4D
+_DEFAB          EQU     #63
+_DEFER          EQU     #64
+_DOSVER         EQU     #6F
+_FFIRST         EQU     #40
+_TERM           EQU     #62     
+
+
+; --- DOS FCB OFFSETS                   -----------------------------------------
+
+
+
+FDRIVE          EQU     0
+FFILNAME        EQU     1
+FFILEXT         EQU     9
+FCURBLK         EQU     12
+FRECSIZ         EQU     14
+FFILSIZ         EQU     16
+FDATE           EQU     20
+FTIME           EQU     22
+FDEVID          EQU     24
+FDIRLOC         EQU     25
+FTOPCLUS        EQU     26
+FLSTCLUS        EQU     28
+FRELLOC         EQU     30
+FCURREC         EQU     32
+FRNDREC         EQU     33
+SIZEFCB         EQU     37
+
+
+; --- UNAPI                             ----------------------------------------
+
+
+                ;--- TCP/IP UNAPI routines
+
+TCPIP_GET_CAPAB EQU     1
+TCPIP_DNS_Q     EQU     6
+TCPIP_DNS_S     EQU     7
+TCPIP_TCP_OPEN  EQU     13
+TCPIP_TCP_CLOSE EQU     14
+TCPIP_TCP_ABORT EQU     15
+TCPIP_TCP_STATE EQU     16
+TCPIP_TCP_SEND  EQU     17
+TCPIP_TCP_RCV   EQU     18
+TCPIP_TCP_DISCARD EQU   19
+TCPIP_WAIT      EQU     29
+
+                ;--- TCP/IP UNAPI error codes
+
+ERR_OK          EQU     0
+ERR_NOT_IMP     EQU     1
+ERR_NO_NETWORK  EQU     2
+ERR_NO_DATA     EQU     3
+ERR_INV_PARAM   EQU     4
+ERR_QUERY_EXISTS       EQU     5
+ERR_INV_IP      EQU     6
+ERR_NO_DNS      EQU     7
+ERR_DNS         EQU     8
+ERR_NO_FREE_CONN       EQU     9
+ERR_CONN_EXISTS EQU     10
+ERR_NO_CONN     EQU     11
+ERR_CONN_STATE  EQU     12
+ERR_BUFFER      EQU     13
+ERR_LARGE_DGRAM EQU     14
+ERR_INV_OPER    EQU     15
+
+                ; MAX BLK SEND SIZE
+
+TCP_BLK_SIZE    EQU     512
+
+; --- ASCII                             ----------------------------------------
+
+                ; CHAR CODES
+
+NUL             EQU     0                
+SOH             EQU     1
+STX             EQU     2
+EOT             EQU     4
+ACK             EQU     6
+BEL             EQU     #07
+LF              EQU     #0A
+CR              EQU     #0D
+ESC             EQU     #1B
+NAK             EQU     #15
+ETB             EQU     #17
+CAN             EQU     #18
+EOF             EQU     #1A
+                
+                ; CURSOR
+
+CRIGHT          EQU     #1C
+CLEFT           EQU     #1D
+CUP             EQU     #1E
+CDOWN           EQU     #1F
+
+
+; --- X/Y MODEM                         ----------------------------------------
+
+
+ACTCRC          EQU     'C'
+ACTYG           EQU     'G'
+
+XERRCNT         EQU     10      ; ERROR LIMIT 
+XWAITACT        EQU     90
+
+
+; --- TELNET PROTOCOL                  ----------------------------------------
+
+
+                ; -
+                ; - PROTOCOL
+                ;- 
+
+DO              EQU     #FD
+WONT            EQU     #FC
+WILL            EQU     #FB
+DONT            EQU     #FE
+IAC             EQU     #FF
+SB              EQU     #FA
+SE              EQU     #F0
+IS              EQU     0
+SEND            EQU     1
+
+                ; - 
+                ; - 2 BYTE COMMANDS
+                ; - 
+
+GA              EQU     #F9
+EL              EQU     #F8
+EC              EQU     #F7
+AYT             EQU     #F6
+AO              EQU     #F5
+IP              EQU     #F4
+BRK             EQU     #F3
+DM              EQU     #F2
+NOP             EQU     #F1
+
+                ; -
+                ; - 3 BYTE COMMANDS
+                ; -
+
+CMD_TRANSMIT_BINARY     EQU     0
+CMD_ECHO                EQU     1
+CMD_SUPPRESS_GO_AHEAD   EQU     3
+CMD_TTYPE               EQU     24
+CMD_WINDOW_SIZE         EQU     31
+CMD_TERMINAL_SPEED      EQU     32 
+CMD_REMOTE_FLOW_CONTROL EQU     33 
+CMD_LINE_MODE           EQU     34 
+CMD_ENV_VARIABLES       EQU     36 
+CMD_ENCRYPTION          EQU     38
+
+

@@ -1,0 +1,1945 @@
+; **********************************************
+; * YET ANOTHER TERMINAL                       *
+; * Very simplified Terminal program           * 
+; * with YMODEM support                        *
+; * UNAPI  compatible                          *
+; * Based on Nestor Soriano TCPCON             *
+; * 2021 - 2022 Coded by Armando Perez         *  
+; **********************************************
+
+                OUTPUT  YAT.COM
+
+; --- MACROS                            ----------------------------------------
+
+
+                ; BREAK
+
+                MACRO   BRK
+                DI
+                JP      $
+                ENDM
+
+
+                ; ORG DOES NOT PAD DATA/INSTRUCTIONS
+                ; USE THIS MACRO INSTEAD 
+                
+                MACRO PADORG addr
+                IF $ < addr
+                BLOCK addr-$
+                ENDIF
+                ORG addr
+                ENDM
+                
+
+; --- CONST / INCLUDES                  ----------------------------------------
+
+
+                INCLUDE HARD.Z8A
+                INCLUDE CONST.Z8A
+
+
+; --- DOS PROGRAM                       ----------------------------------------
+
+
+                ORG     #100
+                JP      INIT
+
+; --- USAGE                             ----------------------------------------
+
+
+LOGO            DEFM    "Yet Another Terminal "
+                DEFB    VERSION.MAJOR, ".", VERSION.MINOR
+                DEFB    #0D, #0A, '$'
+
+USAGE           DEFM    "UNAPI TCP/IP Simplified Terminal"
+                DEFB    #0D, #0A
+                DEFM    "with YMODEM transfer support."
+                DEFB    #0D, #0A
+                DEFM    "*** Based on Konamiman TCPCON ***"
+                DEFB    #0D, #0A
+                DEFM    "*** Based on Ducasp Telnet ***"
+                DEFB    #0D, #0A
+                DEFM    ">>> 2021 - 2022 Armando Perez <<<"
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "Usage: YAT <host | IP > [port]"
+                DEFB    #0D, #0A
+                DEFM    "     <host | IP> : host or IP"
+                DEFB    #0D, #0A
+                DEFM    "     port: if not specified default 23"
+                DEFB    #0D, #0A
+                DEFB    #0D, #0A
+                DEFM    "Example: YAT bbs.beholderbbs.org 23"
+                DEFB    #0D, #0A, "$"
+                DEFB    0
+
+
+; --- MODULE INCLUDE                    ----------------------------------------
+
+
+                INCLUDE BDOS.Z8A
+                INCLUDE UNAPI.Z8A
+                INCLUDE XYMODEM.Z8A
+                INCLUDE GENERIC.Z8A
+                INCLUDE DATA.Z8A
+                 
+
+; --- PROGRAM                           ----------------------------------------
+
+
+
+INIT            ; PRINT LOGO
+
+                LD      DE,LOGO
+                CALL    STROUT
+
+                ; SINCE VARS ARE NOT INCLUDED
+                ; IN THE PROGRAM
+                ; WE NEED CLEAN FIRSTLY
+
+                LD      HL,VARS
+                LD      DE,VARS + 1
+                LD      BC,ENDVARS - VARS
+                LD      (HL),0
+                LDIR
+               
+
+                ; CLEAR FN KEYS
+
+                CALL    CLFNKEY
+
+                ; GET MSX MODEL
+
+                CALL    GETMODEL
+                
+                ; GET DOS VERSION
+
+                CALL    DOSVER
+
+                ; PARAMS
+
+                CALL    PARAMS
+                
+                ; MAPPER
+
+                CALL    MAPPER
+
+                ; UNAPI
+
+                CALL    PREUNAPI
+               
+                ; CTRL - C | ESC ABORT
+
+                LD      A,(DOS2)
+                AND     A
+                LD      DE,TCPCLOSE
+                LD      C,_DEFAB
+                CALL    NZ,BDOS
+                
+                ; TCP RESOLVE
+
+                CALL    TCPRESOL
+
+                ; TCP OPEN
+
+                CALL    TCPOPEN
+
+
+                ; CLEAR VARS AND INIT
+
+                XOR     A
+                LD      (ANSION),A
+                LD      (TELCMD),A
+                LD      (TELSTAT),A
+                LD      (UNAPISET),A
+                
+                ; - 
+                ; - DEFAULT VALUES
+                ; - 
+
+                ; YMODEM
+
+                LD      A,YMODEM
+                LD      (XPROTCL),A
+
+                ; TELNET TRANSFER
+
+                LD      A,TELTRF
+                LD      (XYTRANS),A
+
+
+
+
+
+
+
+; - RETMAIN ----------
+; - RETURN TO MAIN
+; - 
+
+RETMAIN         CALL    PROGFLK
+
+
+; --- MAIN LOOP                         ----------------------------------------
+
+
+
+; - MAIN -------------
+; - MAIN LOOP
+; - 
+
+MAIN            ; GET DATA
+                
+                LD      DE,BUFFER
+                LD      HL,#400
+                CALL    TCPRCV
+                
+                ; PRINT BUFFER
+
+                LD      A,B
+                OR      C
+                LD      DE,BUFFER
+                PUSH    AF
+                CALL    NZ,PARSBUFF
+                POP     AF
+
+                ; IF BUFFER EMPTY
+                ; CHECK CONNECTION
+
+                CALL    Z,TCPSTATE
+
+                ; GET KEYBOARD DATA
+                
+                LD      HL,BUFFER
+                CALL    GETBUFF
+
+                ; IF NOT EMPTY SEND
+
+                LD      A,B
+                OR      C
+                LD      HL,BUFFER
+                CALL    NZ,SENDBUFF
+
+
+                ; WAIT
+
+                CALL    TCPWAIT
+
+                ; EXIT?
+
+                LD      A,(#FBEC)
+                BIT     2,A
+                JP      Z,TCPCLOSE
+
+                ; F4 SELECT FILE
+
+                BIT     0,A
+                JP      Z,SELECTF
+
+
+                ; F5 SELECT PROTOCOL
+
+                BIT     1,A
+                JP      Z,SELECTP
+
+
+                ; SELECT TERMINAL
+
+                BIT     6,A
+                JP      Z,SELECTT
+
+                LD      A,(#FBEB)
+
+                ; F3 UPLOAD
+
+                BIT     7,A
+                JP      Z,XYUPLOAD
+
+
+                ; F2 DOWNLOAD
+
+                BIT     6,A
+                JP      Z,XYDOWN
+
+
+                ; F1 HELP
+
+                BIT     5,A
+                JP      Z,HELP
+
+
+
+                ; RELOOP
+
+                JP      MAIN
+
+                
+
+
+
+
+; --- BUFFER PRINT / SEND               ----------------------------------------
+
+
+
+                ; -
+                ; - PRINT BUFFER / TELNET COMMANDS
+                ; - 
+
+
+                ; - THIS CODE IS COPY/PASTED FROM 
+                ; - AWESOME DUCASP TELNET
+                ; - 
+
+; - PARSBUFF --------
+; - PARSE BUFFER
+; - DE: BUFFER
+; - BC: SIZE
+; 
+
+
+PARSBUFF        LD      A,(TELSTAT)
+                LD      HL,.DATA
+                CALL    CALFUN
+                
+                LD      A,B
+                OR      C
+                JR      NZ,PARSBUFF
+                RET
+
+                        
+.DATA           DEFW    CMDIDLE         ; IDLE
+                DEFW    CMDPRG          ; COMMAND PROGRESS
+                DEFW    SUBPRG          ; SUB PROGRESS
+                DEFW    SUBWAIT         ; SUB WAIT END
+
+
+
+
+; - CMDIDLE -----------
+; - PRINT BUFFER 
+; - UNTIL IAC IS RECEIVED
+; - DE: BUFFER
+; - BC: SIZE
+; - 
+
+CMDIDLE         EX      DE,HL
+                CALL    PRTBUFF
+                EX      DE,HL
+                RET
+
+
+; - PRTBUFF ----------
+; - PRINT BUFFER
+; - HL: BUFFER
+; - BC: SIZE
+; -
+
+PRTBUFF         LD      A,(HL)
+                LD      E,A
+                
+                ; EMPTY ?
+
+                AND     A
+                JR      Z,.NEXT 
+
+                ; ANSI ON ?
+
+                LD      A,(ANSION)
+                AND     A
+                JR      NZ,.ANSI
+
+                LD      A,E
+                CP      ESC
+                JR      Z,.ANSISET
+
+
+                ; IAC?
+
+                CP      IAC
+                JR      Z,.IAC
+
+
+                ; PRINT CHAR
+                ; A: CHAR
+
+.PRTCHAR        PUSH    BC
+                PUSH    HL
+                LD      E,A
+                LD      C,_CONOUT
+                CALL    BDOS
+                POP     HL
+                POP     BC
+                
+                ; NEXT OR END
+
+.NEXT           INC     HL
+                DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,PRTBUFF
+                RET     
+                
+                ; SET ANSI ON / OFF
+
+.ANSISET        LD      A,E 
+                LD      (ANSION),A
+                JR      .NEXT
+                
+                ; ANSI CONTROL
+
+.ANSI           CP      ESC
+                LD      A,E
+                JR      Z,.ANSICSI
+
+                CP      'x'
+                JR      Z,.ANSIXY
+                CP      'y'
+                JR      Z,.ANSIXY
+
+                LD      E,0 
+                CP      '0'
+                JR      C,.ANSISET
+                CP      '@'
+                JR      NC,.ANSISET
+                JR      .NEXT
+        
+.ANSICSI        CP      '['
+                JR      NZ,.ANSIXORY
+.ANSIXY         LD      (ANSION),A
+                JR      .NEXT
+
+.ANSIXORY       CP      'x'
+                JR      Z,.ANSIXY
+                CP      'y'
+                JR      Z,.ANSIXY
+                LD      E,0
+                JR      .ANSISET
+
+                ; TELNET COMMAND INIT
+                
+.IAC            INC     HL
+                DEC     BC
+                LD      (CMDBUFF),A
+                LD      A,1
+                LD      (TELCMD),A
+                LD      A,STECMDPR
+                LD      (TELSTAT),A 
+                RET
+
+
+
+
+; - CMDPRG -----------
+; - TELNET COMMAND IN PROGRESS
+; - DE: BUFFER
+; - BC: SIZE
+; - 
+
+CMDPRG          LD      HL,CMDBUFF
+                LD      A,(TELCMD)
+                CALL    ADDHLA
+                LD      A,(DE)
+                LD      (HL),A
+                CP      IAC
+                JR      NZ,.NOIAC
+                LD      A,(TELCMD)
+                CP      1
+                JR      NZ,.NOIAC
+
+                ; NO  COMMAND
+                ; JUST #FF
+
+                INC     DE
+                DEC     BC
+                LD      A,STEIDLE
+                LD      (TELSTAT),A
+                PUSH    DE
+                PUSH    BC
+                LD      E,IAC
+                LD      C,_CONOUT
+                CALL    BDOS
+                POP     BC
+                POP     DE
+                RET
+
+.NOIAC          LD      A,(TELCMD)
+                CP      1
+                JR      NZ,.DATA
+                LD      A,(DE)
+                CP      SB
+                JR      Z,.SUBPRG
+                
+                CP      NOP 
+                JR      C,.DATA
+                CP      GA + 1
+                JR      NC,.DATA
+
+
+
+.IDLE           LD      A,STEIDLE
+                LD      (TELSTAT),A
+                INC     DE
+                DEC     BC
+                RET
+
+
+.DATA           LD      A,(TELCMD)
+                INC     A
+                LD      (TELCMD),A
+                INC     DE
+                DEC     BC
+                CP      3
+                RET     NZ 
+                LD      A,STEIDLE
+                LD      (TELSTAT),A
+                JP      NEGOTI
+
+
+.SUBPRG         LD      A,STESUBPR
+                LD      (TELSTAT),A
+                INC     DE
+                DEC     BC
+                LD      A,(TELCMD)
+                INC     A
+                LD      (TELCMD),A
+                RET
+
+
+
+; - SUBPRG -----------
+; - SUB COMMAND IN PROGRESS
+; - DE: BUFFER
+; - BC: SIZE
+; - 
+
+SUBPRG          LD      A,(TELCMD)
+                LD      HL,CMDBUFF
+                CALL    ADDHLA
+                LD      A,(DE)
+                LD      (HL),A
+                CP      IAC
+                JR      NZ,.END
+
+.WAITEND        LD      A,STESUBWA
+                LD      (TELSTAT),A
+
+.END            DEC     BC
+                INC     DE
+                LD      A,(TELCMD)
+                INC     A
+                LD      (TELCMD),A
+                RET
+
+
+
+
+
+; - SUBWAIT -----------
+; - SUB WAIT END
+; - DE: BUFFER
+; - BC: SIZE
+; - 
+
+SUBWAIT         LD      A,(TELCMD)
+                LD      HL,CMDBUFF
+                CALL    ADDHLA
+                LD      A,(DE)
+                LD      (HL),A
+                CP      SE
+                JP      NZ,SUBPRG.END 
+
+                CALL    CMDPRG.IDLE 
+
+
+; - NEGOTI -----------
+; - HANDLES CMD NEGOTIATION
+; - 
+
+
+
+
+NEGOTI          PUSH    DE
+                PUSH    BC
+                CALL    .GEN
+                POP     BC
+                POP     DE
+                RET
+
+.GEN            LD      A,(CMDBUFF + 1)
+                CP      DO
+                JP      Z,.DO
+                CP      WILL
+                JP      Z,.WILL
+                CP      SB
+                JP      Z,.SB
+                CP      WONT
+                JP      Z,.WONT
+                CP      DONT
+                JP      Z,.DONT
+                RET
+
+                ; -
+                ; - DO
+                ; - 
+
+
+.DO             LD      A,(CMDBUFF + 2)
+                CP      CMD_WINDOW_SIZE
+                JP      Z,.DOWSIZE
+                CP      CMD_TTYPE
+                JP      Z,.DOTTYPE
+                
+                ; DEFAULT WONT
+
+                LD      A,WONT
+                JP      .SEND
+
+                ; WILLING
+
+.DOTTYPE        LD      A,WILL
+                JP      .SEND
+
+                ; WINDOW SIZE
+                
+.DOWSIZE        LD      A,(MODEL)
+                AND     A
+                LD      DE,TEWSIZE1
+                LD      HL,TEWSIZE1.END - TEWSIZE1
+                JP      Z,TCPSEND
+                LD      DE,TEWSIZE2
+                LD      HL,TEWSIZE2.END - TEWSIZE2
+                JP      TCPSEND
+
+
+                ; - 
+                ; - WILL
+                ; - 
+
+.WILL           LD      A,DO
+                JP      .SEND
+
+                ; - 
+                ; - SB
+                ; - 
+                
+.SB             LD      A,(CMDBUFF + 2)
+                CP      CMD_TTYPE
+                RET     NZ
+
+                LD      DE,TETTYPE
+                LD      HL,TETTYPE.END - TETTYPE
+                JP      TCPSEND
+
+                ; - 
+                ; - WONT
+                ; - 
+
+.WONT           LD      A,DONT
+                JP      .SEND
+
+                ; - 
+                ; - DONT
+                ; - 
+
+
+.DONT           LD      A,WONT
+
+
+.SEND           LD      (CMDBUFF + 1),A
+                LD      DE,CMDBUFF
+                LD      HL,3
+                JP      TCPSEND
+
+
+
+
+
+
+                ; -
+                ; - GET AND SEND INPUT
+                ; - 
+
+
+; - GETBUFF ---------
+; - GET INPUT DATA
+; - HL: BUFFER
+; - OUTPUT:
+; -     BC: SIZE
+; -
+
+GETBUFF         PUSH    HL
+                LD      C,_CONST
+                CALL    BDOS
+                POP     HL
+                LD      BC,#0000
+                AND     A
+                RET     Z
+                PUSH    HL
+                LD      C,_INNOE
+                CALL    BDOS
+                POP     HL
+                LD      BC,#0001
+                LD      (HL),A
+                RET     
+
+                ; FUTURE (ECHO CONTROL)
+                IF      0
+                INC     HL
+                CP      #0D
+                RET     NZ
+                INC     BC
+                LD      A,#0A
+                LD      (HL),A
+                INC     HL
+                INC     BC
+                PUSH    HL
+                PUSH    BC
+                CALL    PROGCHAR 
+                POP     BC
+                POP     HL
+                RET
+                ENDIF
+
+
+
+; - SENDBUFF ---------
+; - PROCESS AND SEND BUFFER
+; - HL: BUFFER
+; - BC: SIZE
+
+SENDBUFF        EX      DE,HL
+                LD      H,B
+                LD      L,C
+                JP      TCPSEND
+
+                ; FUTURE 
+
+                IF      0
+
+                LD      A,(HL)
+
+                ; CURSORS
+
+                LD      DE,TECFORD
+                CP      CRIGHT
+                JR      Z,.SCURSOR
+                LD      DE,TECBACK
+                CP      CLEFT
+                JR      Z,.SCURSOR
+                LD      DE,TECUP
+                CP      CUP
+                JR      Z,.SCURSOR
+                LD      DE,TECDOWN
+                CP      CDOWN
+                JR      Z,.SCURSOR
+
+                ; NORMAL BYTE SEND
+                
+                PUSH    HL
+                PUSH    BC
+                EX      DE,HL
+                LD      HL,1
+                CALL    TCPSEND
+                POP     BC
+                POP     HL
+
+
+
+.NEXT           INC     HL 
+                DEC     BC
+                LD      A,B
+                OR      C
+                JR      NZ,SENDBUFF
+                RET
+
+
+                ; SEND CURSOR
+                ; DE: CURSOR COMMAND
+
+.SCURSOR        PUSH    HL
+                PUSH    BC
+                PUSH    AF
+                LD      HL,3
+                CALL    TCPSEND
+                POP     AF
+                POP     BC
+                POP     HL
+                JR      .NEXT
+
+                ENDIF
+
+
+; --- MAPPER                            ----------------------------------------
+
+
+; - MAPPER -----------
+; - GET MAPPER ROUTINES
+; - 
+
+MAPPER          LD      A,DEFTPAS1
+                LD      (TPASEG1),A
+
+                LD      DE,#0402
+                XOR     A
+                CALL    EXTBIO
+                AND     A
+                RET     Z
+
+                ; SKIP ALL_SET TO GET_P0
+
+                LD      BC,10 * 3
+                ADD     HL,BC
+                LD      DE,PUT_P1
+                LD      BC,2 * 3
+                LDIR
+
+                CALL    GET_P1
+                LD      (TPASEG1),A
+                RET
+                
+
+; - PUT_P1 -----------
+; - SET SEGMENT PAGE 1
+; - A: SEGMENT
+; - 
+
+
+PUT_P1          OUT     (#FD),A
+                RET
+
+
+; - GET_P1 -----------
+; - GET SEGMENT PAGE 1
+; - OUTPUT:
+; -     A: SEGMENT
+; - 
+
+
+GET_P1          IN      A,(#FD)
+                RET
+
+
+; --- UNAPI                             ----------------------------------------
+
+
+; - PREUNAPI ----------
+; - CHECK AND PREPARE
+; - 
+
+PREUNAPI        LD      HL,TCPIP_S
+                LD      BC,#0F
+                CALL    SETUNAPI
+                LD      DE,NOTCPIP
+                JP      C,PRTTERM
+
+                ; ENTRY POINT
+                
+                LD      (JPUNAPI + 1),HL
+                
+                LD      C,A
+                LD      A,H
+                CP      #C0
+                JR      C,.NOPAG3
+
+                ; DISABLE SWITCH
+                ; UNAPI ON PAGE3
+                
+                LD      A,#C9
+                LD      (SWUNAPI),A
+
+                ; SET SLOT
+
+.NOPAG3         LD      A,C
+                LD      (UNAPISLT + 1),A
+                
+                LD      A,B
+                CP      #FF
+                JR      NZ,.NOROM
+
+                LD      A,#C9
+                LD      (UNAPISEG),A
+                
+                ; STORE SEGMENT
+
+.NOROM          LD      A,B
+                LD      (UNAPISEG + 1),A
+
+                RET
+                
+
+; - SWUNAPI ----------
+; - SWITCH PAGE 1
+; - TO UNAPI SLOT/SEGMENT
+; - 
+
+SWUNAPI         LD      A,(UNAPISET)
+                AND     A
+                RET     NZ
+                INC     A
+                LD      (UNAPISET),A
+                
+
+; - UNAPISLT ---------
+; - SET UNAPI SLOT
+; - 
+
+
+UNAPISLT        LD      A,0
+                LD      H,#40
+                CALL    ENASLT
+
+; - UNAPISEG --------
+; - SET UNAPI SEGMENT
+; -
+
+UNAPISEG        LD      A,0
+                JP      PUT_P1
+
+
+; - UNAPI ------------
+; - CALL UNAPI
+; - 
+
+UNAPI           EX      AF,AF
+                EXX
+                CALL    SWUNAPI
+                EI
+                EX      AF,AF
+                EXX
+                
+
+; - JPUNAPI -----------
+; - JP  UNAPI ROUTINE
+; - 
+
+JPUNAPI         JP      #0000
+
+
+
+
+; --- TCP / IP                          ----------------------------------------
+
+
+; - TCPOPEN ----------
+; - OPEN CONNECTION
+; - 
+
+TCPOPEN         LD      HL,TCPPARMS
+                LD      A,TCPIP_TCP_OPEN
+                CALL    UNAPI
+                AND     A
+                JR      NZ,.ERROR
+
+                ; SUCCESS!
+                
+                LD      A,B
+                LD      (CONNUM),A
+
+                LD      DE,OPENING
+                CALL    PROGOUT
+                
+                ; WAIT 
+
+.WAIT           LD      A,TCPIP_WAIT
+                CALL    UNAPI
+
+                ; CHECK ESC (CANCEL)
+
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+
+                LD      A,(CONNUM)
+                LD      B,A
+                LD      HL,#0000
+                LD      A,TCPIP_TCP_STATE
+                CALL    UNAPI
+                AND     A
+                JR      Z,.CHKWAIT
+                
+                ; ERROR :(
+        
+                PUSH    BC
+                LD      DE,ONECRLF
+                CALL    PROGOUT
+                POP     BC
+                LD      DE,TCPCETBL
+                LD      B,C
+                SET     7,B
+                CALL    GETSTR
+                JP      PRTTERM
+                
+                        
+.CHKWAIT        LD      A,B
+                CP      4
+                JR      NZ,.WAIT
+
+                LD      DE,OPENED
+                JP      PROGOUT
+                
+                
+                ; ERROR OPENING CONNECTION
+
+.ERROR          CP      ERR_NOT_IMP
+                JR      NZ,.ERRIMP
+
+                LD      DE,NOTCPA
+                JP      PRTTERM
+
+
+.ERRIMP         PUSH    AF
+                LD      A,':'
+                LD      (RESERR.CODE),A
+                LD      A,' '
+                LD      (RESERR.CODE + 1),A
+                LD      A,'$'
+                LD      (RESERR.CODE + 2),A
+                LD      DE,RESERR
+                CALL    PROGOUT
+                POP     AF
+                LD      B,A
+                LD      DE,TCPOETBL
+                CALL    GETSTR
+                JP      PRTTERM
+                
+
+
+
+; - TCPRESOL  ----------
+; - HOST RESOLVE 
+; - 
+
+TCPRESOL        LD      A,#FF
+                LD      (CONNUM),A
+
+                ; INIT VARS
+                
+                LD      HL,DEFLPORT
+                LD      (LOCPORT),HL
+                LD      HL,#0000
+                LD      (USERTOUT),HL
+                XOR     A
+                LD      (PASSIVE),A
+
+
+                ; Resolving...
+
+                LD      DE,RESOLVE
+                CALL    PROGOUT
+
+                LD      HL,HOST
+                LD      B,0
+                LD      A,TCPIP_DNS_Q
+                CALL    UNAPI
+                LD      B,A
+                LD      IX,DNSQETBL
+                AND     A
+                JR      NZ,.ERROR
+
+                ; WAIT QUERY
+
+.WAIT           LD      A,TCPIP_WAIT
+                CALL    UNAPI
+                LD      B,1
+                LD      A,TCPIP_DNS_S
+                CALL    UNAPI
+
+                AND     A
+                LD      IX,DNSRETBL
+                JR      NZ,.ERROR
+
+                LD      A,B
+                CP      2
+                JR      NZ,.WAIT
+
+                ; FINISHED
+
+                LD      (IPREMOTE),HL
+                LD      (IPREMOTE + 2),DE
+
+                ; PRINT IP
+                
+                LD      IX,RESOK.IP
+                LD      A,'$'
+                CALL    IP2STR
+                LD      DE,RESOK
+                CALL    PROGOUT
+                LD      DE,TWOCRLF
+                CALL    PROGOUT
+                
+                ; CLOSE ALL TRANSIENT CONN
+
+                LD      A,TCPIP_TCP_ABORT
+                LD      B,0
+                JP      UNAPI
+
+                ; B ERROR
+                ; IX TABLE
+
+.ERROR          PUSH    BC
+                PUSH    IX
+                LD      IX,RESERR.CODE
+                LD      A,B
+                CALL    BYTE2ASC
+                LD      (IX + 0),':'
+                LD      (IX + 1),' ' 
+                LD      (IX + 2),'$' 
+                LD      DE,RESERR
+                CALL    PROGOUT
+                POP     DE
+                POP     BC
+                CALL    GETSTR
+                JP      PRTTERM
+
+
+
+; - TCPERR ----------
+; - A: ERROR
+; - SHOW ERROR
+; -
+
+TCPERR          CP      ERR_NO_CONN
+                JR      Z,.CLOSED
+
+                LD      DE,TCPRSETBL
+                LD      B,A
+                CALL    GETSTR
+                CALL    PROGOUT
+                LD      A,(CONNUM)
+                LD      B,A
+                LD      A,TCPIP_TCP_CLOSE
+                CALL    UNAPI
+                JP      PROGTERM
+
+                ; CONN CLOSED
+.CLOSED         LD      DE,TWOCRLF
+                CALL    PROGOUT
+                LD      A,(CONNUM)
+                LD      B,A
+                LD      HL,#0000
+                CALL    UNAPI
+                LD      B,C
+                SET     7,B
+                LD      DE,TCPCETBL
+                CALL    GETSTR
+                JP      PRTTERM
+
+
+                
+; - TCPCLOSE ---------
+; - CLOSE CONNECTION
+; - AND EXIT
+
+TCPCLOSE        LD      A,(CONNUM)
+                CP      #FF
+                JP      Z,PROGTERM
+                LD      B,A
+                LD      A,(#FBEB)
+                AND     %00000010
+                LD      A,TCPIP_TCP_CLOSE
+                LD      DE,USERCLOS
+                JR      NZ,.END
+                LD      A,TCPIP_TCP_ABORT
+                LD      DE,USERABOR
+.END            PUSH    DE
+                CALL    UNAPI
+                POP     DE
+                JP      PRTTERM
+
+
+
+; - TCPWAIT ----------
+; - CALL TCP WAIT
+; - 
+
+TCPWAIT         LD      A,TCPIP_WAIT
+                JP      UNAPI
+
+
+; - TCPSTATE --------
+; - CHECK CONNECTION
+; - 
+
+TCPSTATE        LD      A,(CONNUM)
+                LD      B,A
+                LD      HL,#0000
+                LD      A,TCPIP_TCP_STATE
+                CALL    UNAPI
+                AND     A
+                JR      NZ,TCPERR
+                
+                ; CHECK STABLISHED STATE
+                LD      A,B
+                CP      4
+                RET     Z
+
+                ; CLOSED BY REMOTE PEER
+                
+                LD      A,(CONNUM)
+                LD      B,A
+                LD      A,TCPIP_TCP_CLOSE
+                CALL    UNAPI
+                LD      DE,TWOCRLF
+                CALL    PROGOUT
+                LD      DE,PEERCETBL + 1
+                JP      PRTTERM
+
+
+
+; - TCPRCV -----------
+; - GET DATA
+; - DE: BUFFER
+; - HL: BUFFER SIZE
+; - OUTPUT :
+; -     BC SIZE 
+; - 
+
+
+TCPRCV          LD      A,(CONNUM)
+                LD      B,A
+                LD      A,TCPIP_TCP_RCV
+                CALL    UNAPI
+                AND     A
+                RET     Z
+                JP      TCPERR
+
+
+
+; - TCPSEND ----------
+; - HL: SIZE
+; - DE: BUFFER
+; - 
+
+TCPSEND         LD      A,(CONNUM)
+                LD      B,A
+                LD      C,1
+                LD      A,TCPIP_TCP_SEND
+                CALL    UNAPI
+                AND     A
+                RET     Z
+                JP      TCPERR
+
+; - TCPUSEND ---------
+; - URGENT TCP SEND
+; - HL: SIZE
+; - DE: BUFFER
+; - 
+
+TCPUSEND        LD      A,(CONNUM)
+                LD      B,A
+                LD      C,2
+                LD      A,TCPIP_TCP_SEND
+                CALL    UNAPI
+                AND     A
+                RET     Z
+                JP      TCPERR
+
+
+; - TCPWSEND -------
+; - WAIT UNTIL BUFFER
+; - IS AVAILABLE
+; - HL: SIZE
+; - DE: BUFFER
+; - C: FLAG (URGENT / PUSH)
+; - 
+
+
+
+TCPWSEND        PUSH    HL
+                PUSH    DE
+                PUSH    BC
+                LD      A,(CONNUM)
+                LD      B,A
+                LD      A,TCPIP_TCP_SEND
+                CALL    UNAPI
+                POP     BC
+                POP     DE
+                POP     HL
+                AND     A
+                RET     Z
+                CP      ERR_BUFFER
+                JP      NZ,TCPERR
+
+                PUSH    HL
+                PUSH    DE
+                PUSH    BC
+                CALL    TCPWAIT 
+                POP     BC
+                POP     DE
+                POP     HL
+
+                JR      TCPWSEND
+
+
+
+; - TCPFLUSH ---------
+; - FLUSH TCP BUFFER
+; - 
+
+TCPFLUSH        CALL    TCPDISC 
+.LOOP           CALL    TCPWAIT
+                CALL    TCPSTATE
+                LD      A,(#FBEC)
+                AND     %00000100
+                JP      Z,TCPCLOSE
+                LD      A,H
+                OR      L
+                RET     Z
+                LD      DE,BUFFER
+                CALL    TCPRCV
+                JP      .LOOP
+
+
+; - TCPDISC ----------
+; - TCP DISCARD 
+; - NOT SEND BUFFER
+; - 
+
+TCPDISC         LD      A,(CONNUM)
+                LD      B,A
+                LD      A,TCPIP_TCP_DISCARD
+                JP      UNAPI
+
+
+; --- BDOS                              ----------------------------------------
+
+
+; - PROGFLK ---------
+; - FLUSH KEYBOARD BUFFER
+; - 
+
+PROGFLK         LD      C,_DIRIO
+                LD      E,#FF
+                CALL    BDOS
+                AND     A
+                JR      NZ,PROGFLK
+                RET
+
+
+; - PROGCHAR --------
+; - CONSOLE OUTPUT CHAR
+; - A: CHAR
+
+PROGCHAR        LD      E,A
+                LD      C,_CONOUT
+                JP      BDOS
+
+
+; - PROGRLIN ---------
+; - READ LINE
+; - HL: BUFFER
+; - A: SIZE
+
+PROGRLIN        LD      (HL),A
+                PUSH    HL
+                CALL    PROGFLK
+                POP     DE
+                LD      C,_BUFIN
+                CALL    BDOS
+                CALL    PROGFLK
+                JP      PRTLF
+
+
+
+; - PROGOUTZ --------
+; - STROUT ASCIIZ STRING
+; - HL: STRING
+; - 
+
+PROGOUTZ        LD      A,(HL)
+                INC     HL
+                AND     A
+                RET     Z
+                PUSH    HL
+                LD      E,A
+                LD      C,_CONOUT
+                CALL    BDOS
+                POP     HL
+                JR      PROGOUTZ
+
+
+; - PROGOUT ---------
+; - STROUT 
+; - DE: POINTER TO STRING
+; - 
+
+PROGOUT         LD      C,_STROUT
+                JP      BDOS 
+
+
+; - PRTTERM ----------
+; - PRINT AND TERMINATE
+; - DE: STRING
+; - 
+
+PRTTERM         CALL    PROGOUT
+
+
+; - PROGTERM ---------
+; - PROGRAM TERMINATE
+; - 
+
+PROGTERM        LD      A,(RAMAD1)
+                LD      H,#40
+                CALL    ENASLT
+                LD      A,(TPASEG1)
+                CALL    PUT_P1
+
+                ; DISABLE ABORT ROUTINE
+                
+                LD      A,(DOS2)
+                AND     A
+                LD      DE,#0000
+                LD      C,_DEFAB
+                CALL    NZ,BDOS
+
+                ; RESTORE FN KEYS
+
+                CALL    REFNKEY
+                
+                JP      TERM
+
+
+
+; --- SYSTEM                            ----------------------------------------
+
+
+; - GETMODEL ---------
+; - GET MSX MODEL
+; - 
+
+GETMODEL        LD      A,(EXPTBL)
+                LD      HL,SYSTEM
+                CALL    RDSLT
+                LD      (MODEL),A
+                EI
+                RET
+
+
+
+; --- PARAMS                            ----------------------------------------
+
+
+; - PARAMS -----------
+; - EXTRACT AND PROCESS
+; - PARAMETERS
+; - 
+
+PARAMS          LD      HL,BUFFER
+                CALL    EXTPARM
+                JP      C,.ERRPARM
+
+                LD      HL,BUFFER
+                LD      DE,HOST
+                XOR     A
+                CALL    GETPARAM
+                JR      C,.ERRPARM
+
+
+                ; GET PORT
+
+                LD      BC,DEFPORT
+                LD      (REMPORT),BC
+
+                LD      A,1
+                LD      HL,BUFFER
+                LD      DE,#0000
+                CALL    GETPARAM
+                RET     C
+                
+                PUSH    HL
+
+                LD      A,C
+
+                ; EXTRACT AND STORE REMOTE PORT
+                ; HL = POINTER
+                ; A = SIZE
+
+                LD      HL,STRBUFF
+                LD      DE,STRBUFF + 1
+                LD      BC,4
+                LD      (HL),'0'
+                LDIR
+                LD      C,A
+                XOR     A
+                LD      (DE),A
+                
+                POP     HL
+
+                LD      A,5
+                SUB     C
+                RET     C
+
+                LD      DE,STRBUFF
+                JR      Z,.COPY
+               
+                LD      B,A
+.POS            INC     DE
+                DJNZ    .POS
+
+                ; COPY
+
+.COPY           LD      B,0
+                LDIR
+
+                ; TO INT
+                LD      HL,STRBUFF
+                CALL    STR2INT
+               
+                ; STORE PORT
+
+                LD      (REMPORT),HL
+
+                RET
+
+
+.ERRPARM        LD      DE,USAGE
+                JP      C,STREXIT
+
+
+
+
+
+
+
+; --- PRINT EXTRA                       ---------------------------------------
+
+
+; - PRINTHEX ---------
+; - CONVERT BYTE TO HEX
+; - AND SEND TO CONSOLE
+; - A: BYTE
+; -
+
+PRINTHEX        PUSH    AF
+                AND     #F0
+                SRL     A
+                SRL     A
+                SRL     A
+                SRL     A
+                LD      E,A
+                LD      D,0
+                LD      HL,.HEXDATA
+                ADD     HL,DE
+                LD      A,(HL)
+                CALL    PROGCHAR
+                POP     AF
+                AND     #0F
+                LD      E,A
+                LD      D,0
+                LD      HL,.HEXDATA
+                ADD     HL,DE
+                LD      A,(HL)
+                JP      PROGCHAR
+
+.HEXDATA        DEFM    "0123456789ABCDEF"
+
+
+; - PRTCRLF ----------
+; - PRINT CR + LF
+; - 
+
+PRTCRLF         LD      DE,ONECRLF
+                JP      PROGOUT
+
+; - PRTLF ------------
+; - PRINT LF
+; - 
+
+PRTLF           LD      A,LF
+                JP      PROGCHAR
+
+
+; --- XYMODEM                           ---------------------------------------
+
+
+
+; - XYUPLOAD ---------
+; - X/Y UPLOAD
+; - 
+
+
+XYUPLOAD        CALL    PROGFLK 
+                CALL    TCPFLUSH
+                
+                ; TRANSFER FILE UP
+                ; TO WORK NAME BUFFER
+
+
+                LD      HL,FILENAME2
+                LD      DE,FILENAME2 + 1
+                LD      BC,39
+                LD      (HL),0
+                LDIR
+                
+                LD      HL,FILEUP
+                LD      DE,FILENAME2
+                LD      BC,40
+                LDIR
+                
+                CALL    XYUPLD
+                JP      RETMAIN
+
+
+
+; - XYDOWN ---------
+; - X/Y DOWNLOAD
+; - 
+
+
+XYDOWN          CALL    PROGFLK 
+                CALL    TCPFLUSH
+
+
+                ; TRANSFER FILE UP
+                ; TO WORK NAME BUFFER
+                
+
+                LD      HL,FILENAME2
+                LD      DE,FILENAME2 + 1
+                LD      BC,39
+                LD      (HL),0
+                LDIR
+
+
+                LD      HL,FILEDOWN
+                LD      DE,FILENAME2
+                LD      BC,40
+                LDIR
+                
+                CALL    XYDOWNLOAD
+                JP      RETMAIN
+
+
+
+
+
+
+
+; --- SELECT FILE                       ---------------------------------------
+
+
+; - SELECTF ----------
+; - SELECT FILE TO
+; - UPLOAD / DOWNLOAD
+; - 
+
+SELECTF         LD      DE,SCONF.FILESEL
+                CALL    PROGOUT
+
+                ; CLEAN FILENAME2
+
+                LD      HL,FILENAME2
+                LD      DE,FILENAME2 + 1
+                LD      BC,39
+                LD      (HL),0
+                LDIR
+
+
+                LD      DE,SCONF.FILEUP
+                CALL    .GENERIC
+                LD      HL,FILENAME2
+                LD      DE,FILEUP
+                LD      BC,40
+                LDIR
+                
+
+                LD      HL,FILENAME2
+                LD      DE,FILENAME2 + 1
+                LD      BC,39
+                LD      (HL),0
+                LDIR
+
+                LD      DE,SCONF.FILEDOWN
+                CALL    .GENERIC
+                LD      HL,FILENAME2
+                LD      DE,FILEDOWN
+                LD      BC,40
+                LDIR
+
+                JP      RETMAIN
+                
+
+.GENERIC        ; GENERIC 
+
+                CALL    PROGOUT
+
+
+                LD      HL,FILEBUFIN
+                LD      A,40
+                CALL    PROGRLIN
+                        
+                ; CLEAR CR
+
+                LD      HL,FILEBUFIN + 1
+                LD      A,(HL)
+                INC     HL
+                AND     A
+                JR      Z,.END
+                CALL    ADDHLA
+.END            LD      (HL),0
+                RET
+
+
+
+
+
+; --- SELECT PROTOCOL                  ---------------------------------------
+
+
+
+; - SELECTP ----------
+; - SELECT PROTOCOL
+; - 
+
+SELECTP         LD      HL,OPTPROT
+                LD      DE,SOPTPROT
+                CALL    OPTSEL
+                JP      C,RETMAIN
+                LD      (XPROTCL),A 
+                JP      RETMAIN
+
+
+
+
+; - SELECTT ----------
+; - SELECT TERMINAL TYPE
+; - TRANSFER
+; - 
+
+SELECTT         LD      HL,OPTTRANS
+                LD      DE,SOPTTRANS
+                CALL    OPTSEL
+                JP      C,RETMAIN
+                LD      (XYTRANS),A
+                JP      RETMAIN
+
+
+
+; --- HELP / CONFIGURATION              ---------------------------------------
+
+
+; - HELP -------------
+; - SHOW HELP
+; - 
+
+HELP            LD      DE,SHELP
+                CALL    PROGOUT
+                
+
+
+; - CONFIG ------------
+; - SHOW CONFIG
+; - 
+
+CONFIG          CALL    PROGFLK
+                LD      DE,SCONF
+                CALL    PROGOUT
+
+                ; PROTOCOL 
+
+                LD      DE,SCONF.PROTOCOL
+                CALL    PROGOUT
+                LD      A,(XPROTCL)
+                LD      B,A
+                LD      DE,SPROTOCOL
+                CALL    GETSTR
+                CALL    PROGOUT
+                
+                CALL    PRTCRLF
+
+                ; TERMINAL PROTOCOL 
+
+                LD      DE,SCONF.TRANSFER
+                CALL    PROGOUT
+                LD      A,(XYTRANS)
+                LD      B,A
+                LD      DE,STRANSFER
+                CALL    GETSTR
+                CALL    PROGOUT
+
+
+                ; FILE UPLOAD / DOWNLOAD
+
+                LD      DE,SCONF.FILEUP
+                LD      HL,FILEUP
+                CALL    .GENERIC
+
+                LD      DE,SCONF.FILEDOWN
+                LD      HL,FILEDOWN
+                CALL    .GENERIC
+
+                CALL    PRTCRLF
+                
+                JP      RETMAIN
+
+.GENERIC        ; GENERIC
+                PUSH    HL
+                PUSH    DE
+                CALL    PRTCRLF
+                POP     DE
+                CALL    PROGOUT
+                POP     HL
+.LOOP           LD      A,(HL)
+                INC     HL
+                AND     A
+                RET     Z
+                PUSH    HL
+                CALL    PROGCHAR
+                POP     HL
+                JR      .LOOP
+
+                
+
+
+
+
+; --- OPTION SELECT                     ---------------------------------------
+
+
+
+; - OPTSEL -----------
+; - OPTION SELECTOR
+; - HL: POINTER TO OPTIONS
+; - DE: POINTER TO TEXT
+; - OUTPUT: 
+; -     A: SELECTED OPTION
+; -     CY = 1 ERROR
+; -
+
+
+OPTSEL          PUSH    HL
+                CALL    PROGOUT
+                POP     HL
+                LD      A,(HL)
+                PUSH    HL
+                LD      HL,BUFFER
+                CALL    PROGRLIN
+                POP     HL
+                LD      A,(BUFFER + 1)
+                AND     A
+                JR      NZ,.DATA 
+.ERROR          SCF
+                RET
+
+                ; CONVERT BUFFER OPT IN ASCIIZ OPTION
+                ; GET POINTER TO OPTIONS
+
+.DATA           PUSH    HL 
+                LD      E,A
+                LD      D,0
+                LD      HL,BUFFER + 2
+                ADD     HL,DE
+                LD      (HL),0
+                POP     HL 
+                INC     HL
+                PUSH    HL
+                CALL    PNTHL
+                EX      DE,HL
+                POP     HL
+                INC     HL
+                INC     HL
+                PUSH    HL
+                POP     IX
+
+                ; DE: POINTER TO OPTIONS
+                ; IX: POINTER TO VALUES
+                ; HL: POINTER TO BUFFER OPTION (ASCIIZ)
+
+.LOOP           LD      HL,BUFFER + 2
+                PUSH    DE
+                CALL    OPTCMP
+                POP     DE
+                JR      Z,.SUCCESS
+
+                ; NEXT VALUE
+
+                INC     IX
+
+                ; INC DE UNTIL NEXT OPTION
+
+.NEXT           LD      A,(DE)
+                INC     DE
+                AND     A
+                JR      Z,.LOOP
+                CP      #FF
+                JR      Z,.ERROR
+                JR      .NEXT
+                
+                ; GET OPTION AND EXIT
+
+.SUCCESS        LD      A,(IX + 0)
+                AND     A
+                RET
+
+
+                
+
+
+; - OPTCMP -----------
+; - OPTIONS COMPARATOR (CASE INSENSITIVE)
+; - HL: POINTER TO 1ST STRING, ASCIIZ
+; - DE: POINTER TO 2ND STRING, ASCIIZ   
+; - OUTPUT:
+; -     Z = 1 EQUAL
+; - 
+
+OPTCMP          LD      A,(DE)
+                AND     %11011111
+                INC     DE
+                AND     A
+                JR      Z,.ZEROCMP
+                LD      C,A                
+                LD      A,(HL)
+                AND     %11011111
+                INC     HL
+                AND     A
+                JR      Z,.DIFF
+                CP      C
+                RET     NZ
+                JR      OPTCMP
+.ZEROCMP        CP      (HL)
+                RET     
+.DIFF           OR      C
+                RET     
+
+
+; --- MISC                              ---------------------------------------
+
+
+; - IP2STR  ------------
+; - IP TO STRING (XXX.XXX.XXX.XXX)
+; - L.H.E.D = IP
+; - A: TERM CHAR
+; - IX: STRING BUFFER
+; - 
+
+IP2STR          PUSH    AF
+                LD      A,L
+                CALL    BYTE2ASC
+                LD      (IX + 0),'.'
+                INC     IX
+                LD      A,H
+                CALL    BYTE2ASC
+                LD      (IX + 0),'.'
+                INC     IX
+                LD      A,E
+                CALL    BYTE2ASC
+                LD      (IX + 0),'.'
+                INC     IX
+                LD      A,D
+                CALL    BYTE2ASC
+                POP     AF
+                LD      (IX + 0),A
+                RET
+
+
+
+; --- VARS                              ----------------------------------------
+
+                OUTEND
+                
+                INCLUDE VARS.Z8A
+
+

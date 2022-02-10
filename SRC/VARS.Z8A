@@ -1,0 +1,178 @@
+;                                       ****************************************
+;                                       * VARS                                 *
+;                                       ****************************************
+
+VARS    
+
+; --- SYSTEM                            ----------------------------------------
+
+
+DOS2            DEFB    0
+TPASEG1         DEFB    0
+MODEL           DEFB    0
+
+
+; --- UNAPI / TCP                       ----------------------------------------
+
+
+CONNUM          DEFB    0
+UNAPISET        DEFB    0
+
+                ; TCP PARAMETERS
+                
+TCPPARMS        
+IPREMOTE        DEFS    4
+REMPORT         DEFW    0
+LOCPORT         DEFW    0
+USERTOUT        DEFW    0
+PASSIVE         DEFB    0
+
+                ; HOST NAME
+
+HOST            DEFS    #100
+
+                ; RECV WITH WAIT 
+                
+RECWTOU         DEFW    0
+RECWBYT         DEFW    0
+RECWMAX         DEFW    0
+RECWMIN         DEFW    0
+RECWBUF         DEFW    0
+
+
+
+; --- PROGRAM                           -----------------------------------------
+
+
+                ; ANSI
+
+ANSION          DEFB    0
+
+                ; TELNET STATE
+
+TELSTAT         DEFB    0
+
+                ; TELNET COMMAND
+
+TELCMD          DEFB    0
+TELCMDS         DEFB    0
+
+        
+
+                ; STR TO INT BUFFER
+
+STRBUFF         DEFS    6
+
+                ; BINARY TO ASCII(Z)
+                
+B2DINV          DEFS    8            ; space for 64-bit input value (LSB first)
+B2DBUF          DEFS    20           ; space for 20 decimal digits
+B2DEND          DEFS    1            ; space for terminating 0
+
+
+
+                ; FUNCTION KEYS BUFFER
+                
+FNKBUF          DEFS    10
+
+
+; --- BDOS                              -----------------------------------------
+
+
+FILEOPEN        DEFB    0                              
+
+                ; -
+                ; - FCB (DOS 1)
+                ; - 
+
+FSIZETMP        DEFS    4                     
+FCB             DEFS    SIZEFCB
+
+                ; -
+                ; - FILE HANDLE (DOS 2)
+                ; - 
+
+                ; UPLOAD / DOWNLOAD FILE
+
+FILEUP          DEFS    40,0
+FILEDOWN        DEFS    40,0
+
+
+                ; FILE HANDLE AND 
+                ; WORK NAME FILE 
+
+
+FILEHAND        DEFB    0
+FILEBUFIN       DEFS    2
+FILENAME2       DEFS    40,0
+FILESIZE        DEFS    4
+SIZETRANS       DEFS    4
+
+
+; --- XMODEM                            -----------------------------------------
+
+
+                ; SEND ACTION
+                
+XYSACT          DEFB    0
+
+                ; PACKET RECV COUNTER
+
+XYPKTCNT        DEFB    0
+
+                ; ERROR COUNTER
+
+XFERERR         DEFB    0
+
+                ; ERROR ACTION SEND COUNTER
+
+XACTERR         DEFB    0
+
+                ; USER PROTOCOL
+
+XPROTCL         DEFB    0
+
+                ; TERMINAL TRANSFER TYPE
+
+XYTRANS         DEFB    0
+
+                ; PACKET SIZE
+
+XYPKTSZ         DEFW    0
+                
+                ; DATA PACKET SIZE
+
+XYDATSZ         DEFW    0
+
+                ; XY GET COMMAND / ACTION BUFFER
+
+XYGETBUF        DEFS    #10
+
+                ; PACKET BUFFER
+                
+XYPKTBUF        DEFS    YMODPKSZ1
+
+                ; PAYLOAD MUST BE XYBUF * 2
+                ; (#FF TELNET)
+
+.PAYSIZE        DEFW    0
+.PAYLOAD        DEFS    YMODPKSZ1 * 2
+
+
+; --- BUFFERS                           -----------------------------------------
+
+
+
+CMDBUFF         DEFS    #80
+
+
+                ; BUFFER 
+BUFFER          
+
+
+
+
+
+ENDVARS 
+
+
