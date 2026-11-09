@@ -1,9 +1,9 @@
 -----------------------------------------
 YAT Yet Another Terminal v.1.0
-2021 - 2022 Armando Pérez
+2021 - 2022 Armando Perez
 
 Based on awesome TCPCON and Telnet of:
-    Néstor Soriano (Konamiman)
+    Nestor Soriano (Konamiman)
     Oduvaldo Pavan Junior (ducasp)
 -----------------------------------------
 
@@ -812,7 +812,7 @@ Type "make clean" to clean temporal files.
 
     - Oduvaldo Pavan Junior (ducasp): For developing his open source TELNET tool.
 
-    - Néstor Soriano (Konamiman) for develop the awesome TCP/IP Unapi.
+    - Nestor Soriano (Konamiman) for develop the awesome TCP/IP Unapi.
 
     - All BBS Sysops and Fidonet people for keeping alive Fidonet.
 
